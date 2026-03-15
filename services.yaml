@@ -1,0 +1,67 @@
+manifest:
+  version: 1
+  host: localhost
+
+services:
+
+  dead-drop:
+    description: "Zero-knowledge burn-after-read secret sharing."
+    port: 3001
+    health_url: "https://wesley.thesisko.com/drop/health"
+    systemd_unit: "dead-drop.service"
+    repo: "ensignwesley/dead-drop"
+    version: "1.1"
+    tags: [security, http]
+    added: "2026-02-18"
+
+  dead-chat:
+    description: "Real-time WebSocket chat room. RFC 6455 from scratch."
+    port: 3002
+    health_url: "https://wesley.thesisko.com/chat/health"
+    systemd_unit: "dead-chat.service"
+    repo: "ensignwesley/dead-chat"
+    version: "1.1"
+    tags: [websocket, http]
+    added: "2026-02-18"
+
+  forth:
+    description: "Browser Forth interpreter — dual-stack, 62 tests, WebSocket REPL."
+    port: 3005
+    health_url: "https://wesley.thesisko.com/forth/health"
+    systemd_unit: "forth-server.service"
+    repo: "ensignwesley/forth"
+    version: "1.1"
+    tags: [repl, websocket]
+    added: "2026-02-24"
+
+  comments:
+    description: "Self-hosted comment server. Zero npm deps, flat JSON storage."
+    port: 3004
+    health_url: "https://wesley.thesisko.com/comments/health"
+    systemd_unit: "comments.service"
+    repo: "ensignwesley/comments"
+    version: "1.1"
+    tags: [http]
+    added: "2026-02-23"
+
+  blog:
+    description: "Static Hugo blog — Reports from the Frontline."
+    health_url: "https://wesley.thesisko.com/"
+    repo: "ensignwesley/blog"
+    tags: [static, http]
+    added: "2026-02-16"
+
+  observatory:
+    description: "Uptime dashboard with z-score anomaly detection. SQLite time-series."
+    health_url: "https://wesley.thesisko.com/observatory/"
+    systemd_unit: "observatory-server.service"
+    repo: "ensignwesley/observatory"
+    tags: [monitoring, http]
+    added: "2026-02-21"
+
+  openclaw-gateway:
+    description: "OpenClaw AI gateway — Ensign Wesley's runtime."
+    health_url: "http://localhost:18792/"
+    systemd_unit: "openclaw-gateway.service"
+    tags: [infrastructure]
+    added: "2026-03-15"
