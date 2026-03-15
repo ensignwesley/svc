@@ -27,65 +27,128 @@ svc check        # diff the manifest against what's actually running
 
 The second direction is the one that bites you.
 
-## Example
+## Quick start
+
+```bash
+git clone https://github.com/ensignwesley/svc
+cd svc
+go build -o svc ./cmd/svc/
+./svc init
+# edit services.yaml to describe your fleet
+./svc status
+./svc check
+```
+
+Requires Go 1.22+.
+
+## Example output
+
+```
+$ svc status
+Service         Status    Latency     Note
+──────────────────────────────────────────────
+blog            ✓ up      46ms
+comments        ✓ up      51ms
+dead-chat       ✓ up      47ms
+dead-drop       ✓ up      51ms
+forth           ✓ up      46ms
+observatory     ✓ up      63ms
+
+$ svc check
+Checking 6 service(s)...
+
+No drift detected. All services match the manifest.
+
+$ svc check  # with a down service and undocumented unit
+Checking 6 service(s)...
+
+  forth                ❌  health endpoint unreachable (connection refused)
+
+Undocumented units:
+  ⚠  markov.service — active, no manifest entry
+
+Summary: 1 down, 1 undocumented
+# exits 1
+```
+
+## YAML schema
 
 ```yaml
-# services.yaml
+manifest:
+  version: 1
+  host: localhost          # default health check host
+
 services:
+
   dead-drop:
-    description: "Zero-knowledge burn-after-read secrets sharing"
-    port: 3001
-    systemd_unit: "dead-drop.service"
-    repo: "ensignwesley/dead-drop"
-    version: "1.2.0"
-
-  blog:
-    description: "Static Hugo site served by nginx"
-    health_url: "https://example.com/"
+    description: "Zero-knowledge burn-after-read secret sharing."
+    port: 3001                                    # derives health URL: host:port/health
+    health_url: "https://example.com/drop/health" # or explicit URL
+    systemd_unit: "dead-drop.service"             # checked by svc check
+    repo: "ensignwesley/dead-drop"                # GitHub owner/repo for version check
+    version: "1.1"                                # currently deployed version
+    max_major: 1                                  # ignore releases above v1.x
+    docs: "https://github.com/ensignwesley/dead-drop"
+    tags: [security, http]
+    added: "2026-02-18"
 ```
 
-```
-$ svc check
+Full reference: [SCHEMA.md](SCHEMA.md)
 
-  Service        Status    Latency   Version
-  ───────────────────────────────────────────
-  dead-drop      ✅ up     23ms      current
-  blog           ✅ up     89ms      —
+## Commands
 
-  Undocumented units:
-  ⚠️  markov.service — running but not in manifest
+### `svc init`
 
-  1 drift detected.
+Scaffolds `services.yaml` with annotated examples. Safe — won't overwrite without `--force`.
+
+### `svc status`
+
+Polls all services concurrently. Prints a live health table. Exits 0 always (informational).
+
+Flags: `--file`, `--tag`, `--json`, `--timeout`
+
+### `svc check`
+
+Diffs manifest against running reality:
+1. Services in manifest that aren't responding
+2. systemd units that aren't in the manifest (undocumented)
+3. Services running an older version than latest GitHub release
+
+**Exits 0** — no drift. **Exits 1** — drift detected. CI-composable.
+
+Flags: `--file`, `--tag`, `--no-version`, `--no-systemd`, `--json`, `--timeout`
+
+### CI integration
+
+```yaml
+# .github/workflows/manifest.yml
+- name: Check service manifest
+  run: svc check --no-systemd --file ops/services.yaml
 ```
 
 ## Architecture
 
 - **Single binary**, no runtime dependencies
-- **Zero network calls** except health endpoint polls and optional GitHub release checks
+- **Zero network calls** except health endpoint polls and optional GitHub release checks  
 - **Read-only by default** — `svc` cannot start, stop, or restart services
-- **CI-friendly** — `svc check` exits 0 (all good) or 1 (drift detected)
+- **CI-friendly exits** — 0 (clean) or 1 (drift)
+- **Go stdlib + gopkg.in/yaml.v3** — one external dependency
 
 ## Status
 
-Early development. v0.1 in progress.
+**v0.1.0** — shipped 2026-03-15.
 
+- [x] `svc init` — scaffold services.yaml
+- [x] `svc status` — concurrent health polling, table output, `--json`
+- [x] `svc check` — drift detection: HTTP + systemd + version
+- [ ] `svc add` — scaffold a manifest entry from a running service (v0.2)
+
+Docs:
 - [Design document](DESIGN.md)
 - [Schema reference](SCHEMA.md)
-- [Blog post: why this exists](https://wesley.thesisko.com/posts/project-discovery-2-service-manifest/)
-
-## Install
-
-Not yet packaged. Build from source:
-
-```bash
-git clone https://github.com/ensignwesley/svc
-cd svc
-go build -o svc ./cmd/svc
-./svc init
-```
-
-Requires Go 1.22+.
+- [Why this exists](https://wesley.thesisko.com/posts/project-discovery-2-service-manifest/)
+- [Decision post](https://wesley.thesisko.com/posts/project-discovery-decision/)
 
 ---
 
-*Built by [Ensign Wesley](https://wesley.thesisko.com) — a 30-day Project Discovery process identified this as the self-hosted tool with the clearest daily-use value.*
+*Built by [Ensign Wesley](https://wesley.thesisko.com). A 30-day project discovery process named this the self-hosted tool with the clearest daily-use value.*
