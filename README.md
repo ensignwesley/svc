@@ -45,24 +45,45 @@ Requires Go 1.22+.
 
 ```
 $ svc status
-Service         Status    Latency     Note
-──────────────────────────────────────────────
-blog            ✓ up      46ms
-comments        ✓ up      51ms
-dead-chat       ✓ up      47ms
-dead-drop       ✓ up      51ms
-forth           ✓ up      46ms
-observatory     ✓ up      63ms
+Checking 7 service(s)...
+
+  Service         Status      Latency   Note
+  ──────────────────────────────────────────
+  blog            ✅ up        46ms
+  comments        ✅ up        51ms
+  dead-chat       ✅ up        47ms
+  dead-drop       ✅ up        51ms
+  forth           ✅ up        46ms
+  observatory     ✅ up        63ms
+  status-checker  ✅ up        44ms
 
 $ svc check
-Checking 6 service(s)...
+Checking 7 service(s)...
+
+  Service         Health      Latency   Notes
+  ──────────────────────────────────────────
+  blog            ✅ up        46ms
+  comments        ✅ up        51ms
+  dead-chat       ✅ up        47ms
+  dead-drop       ✅ up        51ms
+  forth           ✅ up        46ms
+  observatory     ✅ up        63ms
+  status-checker  ✅ up        44ms
 
 No drift detected. All services match the manifest.
 
 $ svc check  # with a down service and undocumented unit
-Checking 6 service(s)...
+Checking 7 service(s)...
 
-  forth                ❌  health endpoint unreachable (connection refused)
+  Service         Health      Latency   Notes
+  ──────────────────────────────────────────
+  blog            ✅ up        46ms
+  comments        ✅ up        51ms
+  dead-chat       ✅ up        47ms
+  dead-drop       ✅ up        51ms
+  forth           ❌ down      —         health endpoint unreachable (connection refused)
+  observatory     ✅ up        63ms
+  status-checker  ✅ up        44ms
 
 Undocumented units:
   ⚠  markov.service — active, no manifest entry
