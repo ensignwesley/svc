@@ -88,6 +88,8 @@ func main() {
 		cmdInit(args)
 	case "status":
 		cmdStatus(args)
+	case "check":
+		cmdCheck(args)
 	case "version", "--version", "-v":
 		fmt.Printf("svc version %s\n", version)
 	case "help", "--help", "-h":
@@ -199,6 +201,114 @@ func hasTag(tags []string, tag string) bool {
 		}
 	}
 	return false
+}
+
+// cmdCheck diffs the manifest against what's actually running.
+func cmdCheck(args []string) {
+	manifestPath := "services.yaml"
+	noVersion := false
+	noSystemd := false
+	timeoutSec := 5
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--file", "-f":
+			if i+1 >= len(args) {
+				fatal("--file requires a path argument")
+			}
+			i++
+			manifestPath = args[i]
+		case "--no-version":
+			noVersion = true
+		case "--no-systemd":
+			noSystemd = true
+		case "--timeout":
+			if i+1 >= len(args) {
+				fatal("--timeout requires a value")
+			}
+			i++
+			fmt.Sscanf(args[i], "%d", &timeoutSec)
+		default:
+			fatalf("unknown flag: %s", args[i])
+		}
+	}
+
+	m, err := manifest.Load(manifestPath)
+	if err != nil {
+		fatal(err.Error())
+	}
+
+	if len(m.Services) == 0 {
+		fmt.Println("No services defined in manifest.")
+		return
+	}
+
+	// Build ignore set from manifest.
+	ignoreSet := make(map[string]bool)
+	for _, u := range m.Meta.IgnoreUnits {
+		ignoreSet[u] = true
+	}
+	// Also ignore units declared in the manifest itself.
+	manifestUnits := make(map[string]bool)
+	for _, svc := range m.Services {
+		if svc.SystemdUnit != "" {
+			manifestUnits[svc.SystemdUnit] = true
+		}
+	}
+
+	// 1. Health checks.
+	targets := make(map[string]string)
+	for id, svc := range m.Services {
+		targets[id] = manifest.ResolveHealthURL(m, svc)
+	}
+	healthResults := checker.CheckAllHealth(targets, timeoutSec)
+
+	// 2. Systemd checks.
+	systemdResults := make(map[string]checker.SystemdResult)
+	useSystemd := !noSystemd && checker.SystemdAvailable()
+	if useSystemd {
+		for id, svc := range m.Services {
+			if svc.SystemdUnit != "" {
+				systemdResults[id] = checker.CheckUnit(svc.SystemdUnit)
+			}
+		}
+	}
+
+	// 3. Version checks (stub for now — will add in v0.2).
+	_ = noVersion
+
+	// 4. Undocumented units scan.
+	var undocumented []string
+	if useSystemd {
+		operatorUnits, err := checker.ListOperatorUnits()
+		if err == nil {
+			for _, unit := range operatorUnits {
+				if !manifestUnits[unit] && !ignoreSet[unit] {
+					undocumented = append(undocumented, unit)
+				}
+			}
+		}
+	}
+
+	// Print results.
+	driftCount := output.PrintCheckTable(os.Stdout, healthResults, systemdResults, m.Services)
+
+	if len(undocumented) > 0 {
+		fmt.Println()
+		fmt.Println("Undocumented units:")
+		for _, u := range undocumented {
+			fmt.Printf("  ⚠️  %s — active, no manifest entry\n", u)
+		}
+		driftCount += len(undocumented)
+	}
+
+	fmt.Println()
+	if driftCount == 0 {
+		fmt.Println("No drift detected. All services match the manifest.")
+		os.Exit(0)
+	}
+	fmt.Printf("Summary: %d drift detected.\n", driftCount)
+	os.Exit(1)
 }
 
 func printUsage() {

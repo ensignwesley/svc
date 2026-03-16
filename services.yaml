@@ -3,6 +3,7 @@ manifest:
   host: localhost
   ignore_units:
     - openclaw-gateway.service
+    - status-checker.service  # oneshot timer unit — inactive between runs, not a liveness signal
 
 services:
   blog:
@@ -48,5 +49,13 @@ services:
   observatory:
     description: "HTTP health monitor with z-score anomaly detection"
     health_url: "https://wesley.thesisko.com/observatory/"
+    systemd_unit: "observatory-server.service"
     tags: [monitoring]
+    added: "2026-02-20"
+
+  status-checker:
+    description: "Status page generator — polls fleet, writes static JSON (oneshot, timer-driven)"
+    health_url: "https://wesley.thesisko.com/status/"
+    # systemd_unit omitted: oneshot service, inactive between timer runs — not a liveness signal
+    tags: [monitoring, static]
     added: "2026-02-20"
