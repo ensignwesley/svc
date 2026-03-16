@@ -1,18 +1,19 @@
 package manifest
 
-// Manifest is the top-level structure parsed from services.yaml.
+// Manifest is the top-level structure of services.yaml.
 type Manifest struct {
 	Meta     Meta               `yaml:"manifest"`
 	Services map[string]Service `yaml:"services"`
 }
 
-// Meta holds global defaults for the manifest.
+// Meta holds global manifest settings.
 type Meta struct {
-	Version int    `yaml:"version"`
-	Host    string `yaml:"host"`
+	Version     int      `yaml:"version"`
+	Host        string   `yaml:"host"`
+	IgnoreUnits []string `yaml:"ignore_units"`
 }
 
-// Service describes a single service entry.
+// Service describes a single self-hosted service.
 type Service struct {
 	Description  string   `yaml:"description"`
 	Port         int      `yaml:"port"`
@@ -24,29 +25,4 @@ type Service struct {
 	Docs         string   `yaml:"docs"`
 	Tags         []string `yaml:"tags"`
 	Added        string   `yaml:"added"`
-}
-
-// ResolvedHealthURL returns the health URL for this service.
-// If health_url is set, it's used directly.
-// Otherwise derived from host:port/health.
-func (s *Service) ResolvedHealthURL(host string) string {
-	if s.HealthURL != "" {
-		return s.HealthURL
-	}
-	if host == "" {
-		host = "localhost"
-	}
-	return "http://" + host + ":" + itoa(s.Port) + "/health"
-}
-
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	buf := make([]byte, 0, 10)
-	for n > 0 {
-		buf = append([]byte{byte('0' + n%10)}, buf...)
-		n /= 10
-	}
-	return string(buf)
 }

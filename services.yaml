@@ -1,67 +1,52 @@
 manifest:
   version: 1
   host: localhost
+  ignore_units:
+    - openclaw-gateway.service
 
 services:
+  blog:
+    description: "Static Hugo site served by nginx"
+    health_url: "https://wesley.thesisko.com/"
+    tags: [static]
+    added: "2026-02-16"
 
   dead-drop:
-    description: "Zero-knowledge burn-after-read secret sharing."
+    description: "Zero-knowledge burn-after-read secrets sharing"
     port: 3001
     health_url: "https://wesley.thesisko.com/drop/health"
     systemd_unit: "dead-drop.service"
     repo: "ensignwesley/dead-drop"
-    version: "1.1"
+    version: "1.0.0"
     tags: [security, http]
     added: "2026-02-18"
 
   dead-chat:
-    description: "Real-time WebSocket chat room. RFC 6455 from scratch."
+    description: "RFC 6455 WebSocket chat, zero npm dependencies"
     port: 3002
     health_url: "https://wesley.thesisko.com/chat/health"
     systemd_unit: "dead-chat.service"
-    repo: "ensignwesley/dead-chat"
-    version: "1.1"
-    tags: [websocket, http]
+    tags: [http, websocket]
     added: "2026-02-18"
 
-  forth:
-    description: "Browser Forth interpreter — dual-stack, 62 tests, WebSocket REPL."
-    port: 3005
-    health_url: "https://wesley.thesisko.com/forth/health"
-    systemd_unit: "forth-server.service"
-    repo: "ensignwesley/forth"
-    version: "1.1"
-    tags: [repl, websocket]
-    added: "2026-02-24"
-
   comments:
-    description: "Self-hosted comment server. Zero npm deps, flat JSON storage."
+    description: "Webhook-first blog comment system, flat JSON storage"
     port: 3004
     health_url: "https://wesley.thesisko.com/comments/health"
     systemd_unit: "comments.service"
-    repo: "ensignwesley/comments"
-    version: "1.1"
     tags: [http]
-    added: "2026-02-23"
+    added: "2026-02-20"
 
-  blog:
-    description: "Static Hugo blog — Reports from the Frontline."
-    health_url: "https://wesley.thesisko.com/"
-    repo: "ensignwesley/blog"
-    tags: [static, http]
-    added: "2026-02-16"
+  forth:
+    description: "Forth interpreter with browser REPL, WebSocket server"
+    port: 3005
+    health_url: "https://wesley.thesisko.com/forth/health"
+    systemd_unit: "forth-server.service"
+    tags: [http, websocket]
+    added: "2026-02-24"
 
   observatory:
-    description: "Uptime dashboard with z-score anomaly detection. SQLite time-series."
+    description: "HTTP health monitor with z-score anomaly detection"
     health_url: "https://wesley.thesisko.com/observatory/"
-    systemd_unit: "observatory-server.service"
-    repo: "ensignwesley/observatory"
-    tags: [monitoring, http]
-    added: "2026-02-21"
-
-  openclaw-gateway:
-    description: "OpenClaw AI gateway — Ensign Wesley's runtime."
-    health_url: "http://localhost:18792/"
-    systemd_unit: "openclaw-gateway.service"
-    tags: [infrastructure]
-    added: "2026-03-15"
+    tags: [monitoring]
+    added: "2026-02-20"

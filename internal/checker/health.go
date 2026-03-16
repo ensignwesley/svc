@@ -1,7 +1,7 @@
 package checker
 
 import (
-	"context"
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -9,22 +9,47 @@ import (
 
 // HealthResult holds the result of a single health check.
 type HealthResult struct {
-	ID        string
-	URL       string
-	Up        bool
-	LatencyMs int64
-	Err       error
+	ServiceID  string
+	URL        string
+	Up         bool
+	StatusCode int
+	LatencyMS  int64
+	Err        string
 }
 
-// CheckAll polls all given URLs concurrently and returns results.
-func CheckAll(targets map[string]string, timeoutSecs int) []HealthResult {
-	if timeoutSecs <= 0 {
-		timeoutSecs = 5
-	}
+// CheckHealth polls a single health endpoint and returns the result.
+func CheckHealth(id, url string, timeoutSec int) HealthResult {
 	client := &http.Client{
-		Timeout: time.Duration(timeoutSecs) * time.Second,
+		Timeout: time.Duration(timeoutSec) * time.Second,
 	}
 
+	start := time.Now()
+	resp, err := client.Get(url)
+	elapsed := time.Since(start).Milliseconds()
+
+	result := HealthResult{
+		ServiceID: id,
+		URL:       url,
+		LatencyMS: elapsed,
+	}
+
+	if err != nil {
+		result.Up = false
+		result.Err = summariseError(err)
+		return result
+	}
+	defer resp.Body.Close()
+
+	result.StatusCode = resp.StatusCode
+	result.Up = resp.StatusCode == 200
+	if !result.Up {
+		result.Err = fmt.Sprintf("HTTP %d", resp.StatusCode)
+	}
+	return result
+}
+
+// CheckAllHealth runs health checks concurrently for all provided (id, url) pairs.
+func CheckAllHealth(targets map[string]string, timeoutSec int) []HealthResult {
 	results := make([]HealthResult, 0, len(targets))
 	var mu sync.Mutex
 	var wg sync.WaitGroup
@@ -33,7 +58,7 @@ func CheckAll(targets map[string]string, timeoutSecs int) []HealthResult {
 		wg.Add(1)
 		go func(id, url string) {
 			defer wg.Done()
-			r := checkOne(client, id, url)
+			r := CheckHealth(id, url, timeoutSec)
 			mu.Lock()
 			results = append(results, r)
 			mu.Unlock()
@@ -44,21 +69,33 @@ func CheckAll(targets map[string]string, timeoutSecs int) []HealthResult {
 	return results
 }
 
-func checkOne(client *http.Client, id, url string) HealthResult {
-	start := time.Now()
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
-	if err != nil {
-		return HealthResult{ID: id, URL: url, Up: false, Err: err}
+// summariseError converts a net/http error into an operator-readable message.
+func summariseError(err error) string {
+	msg := err.Error()
+	// connection refused
+	if contains(msg, "connection refused") {
+		return "connection refused"
 	}
-	req.Header.Set("User-Agent", "svc/0.1")
-
-	resp, err := client.Do(req)
-	latency := time.Since(start).Milliseconds()
-	if err != nil {
-		return HealthResult{ID: id, URL: url, Up: false, LatencyMs: latency, Err: err}
+	// timeout
+	if contains(msg, "timeout") || contains(msg, "deadline exceeded") {
+		return "timeout"
 	}
-	resp.Body.Close()
+	// DNS
+	if contains(msg, "no such host") || contains(msg, "dial tcp") {
+		return "DNS/connection error"
+	}
+	return msg
+}
 
-	up := resp.StatusCode >= 200 && resp.StatusCode < 300
-	return HealthResult{ID: id, URL: url, Up: up, LatencyMs: latency}
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsStr(s, substr))
+}
+
+func containsStr(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }
