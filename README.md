@@ -155,6 +155,14 @@ Flags: `--file`, `--tag`, `--no-version`, `--no-systemd`, `--json`, `--timeout`
 - **CI-friendly exits** — 0 (clean) or 1 (drift)
 - **Go stdlib + gopkg.in/yaml.v3** — one external dependency
 
+## Scope: what svc checks and what it doesn't
+
+**Runs on the machine you check.** `svc status` and `svc check` (HTTP) work against any URL — remote services, other machines, external endpoints. `svc check` systemd features (undocumented unit scan, `systemctl is-active` verification) only work on the local machine.
+
+For multi-machine homelabs, the recommended pattern is one `services.yaml` per machine with HTTP `health_url` entries pointing to remote endpoints. The systemd checks then cover the local machine; remote machines get HTTP-only coverage. SSH-based remote systemd checking is planned for v0.2.
+
+**No write operations.** `svc` reports; it does not restart, reconcile, or modify running services. `svc add` (manifest scaffolding from a running service) is planned for v0.2.
+
 ## Status
 
 **v0.1.0** — shipped 2026-03-15.
