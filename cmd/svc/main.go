@@ -139,6 +139,7 @@ func cmdStatus(args []string) {
 	manifestPath := "services.yaml"
 	filterTag := ""
 	timeoutSec := 5
+	jsonOut := false
 
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
@@ -160,6 +161,8 @@ func cmdStatus(args []string) {
 			}
 			i++
 			fmt.Sscanf(args[i], "%d", &timeoutSec)
+		case "--json":
+			jsonOut = true
 		default:
 			fatalf("unknown flag: %s", args[i])
 		}
@@ -189,8 +192,32 @@ func cmdStatus(args []string) {
 		return
 	}
 
-	fmt.Printf("Checking %d service(s)...\n\n", len(targets))
 	results := checker.CheckAllHealth(targets, timeoutSec)
+
+	if jsonOut {
+		statuses := make([]output.ServiceStatus, 0, len(results))
+		for _, r := range results {
+			status := "down"
+			if r.Up {
+				status = "up"
+			}
+			statuses = append(statuses, output.ServiceStatus{
+				ID:        r.ServiceID,
+				Status:    status,
+				LatencyMs: r.LatencyMS,
+			})
+		}
+		out := output.StatusJSON{
+			CheckedAt: output.Now(),
+			Services:  statuses,
+		}
+		if err := output.WriteJSON(os.Stdout, out); err != nil {
+			fatalf("json output: %v", err)
+		}
+		return
+	}
+
+	fmt.Printf("Checking %d service(s)...\n\n", len(targets))
 	output.PrintStatusTable(os.Stdout, results)
 }
 
@@ -209,6 +236,7 @@ func cmdCheck(args []string) {
 	noVersion := false
 	noSystemd := false
 	timeoutSec := 5
+	jsonOut := false
 
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
@@ -228,6 +256,8 @@ func cmdCheck(args []string) {
 			}
 			i++
 			fmt.Sscanf(args[i], "%d", &timeoutSec)
+		case "--json":
+			jsonOut = true
 		default:
 			fatalf("unknown flag: %s", args[i])
 		}
@@ -290,6 +320,54 @@ func cmdCheck(args []string) {
 		}
 	}
 
+	if jsonOut {
+		statuses := make([]output.ServiceStatus, 0, len(healthResults))
+		for _, r := range healthResults {
+			status := "down"
+			if r.Up {
+				status = "up"
+			}
+			ss := output.ServiceStatus{
+				ID:        r.ServiceID,
+				Status:    status,
+				LatencyMs: r.LatencyMS,
+			}
+			if sr, ok := systemdResults[r.ServiceID]; ok {
+				active := sr.Active
+				ss.SystemdActive = &active
+			}
+			statuses = append(statuses, ss)
+		}
+		// Calculate drift for JSON output.
+		driftJSON := 0
+		for _, r := range healthResults {
+			if !r.Up {
+				driftJSON++
+			}
+		}
+		for _, sr := range systemdResults {
+			if !sr.Active {
+				driftJSON++
+			}
+		}
+		driftJSON += len(undocumented)
+		exitCode := 0
+		if driftJSON > 0 {
+			exitCode = 1
+		}
+		out := output.CheckJSON{
+			CheckedAt:    output.Now(),
+			Services:     statuses,
+			Undocumented: undocumented,
+			DriftCount:   driftJSON,
+			ExitCode:     exitCode,
+		}
+		if err := output.WriteJSON(os.Stdout, out); err != nil {
+			fatalf("json output: %v", err)
+		}
+		os.Exit(exitCode)
+	}
+
 	// Print results.
 	driftCount := output.PrintCheckTable(os.Stdout, healthResults, systemdResults, m.Services)
 
@@ -317,13 +395,20 @@ func printUsage() {
 Usage:
   svc init              scaffold a services.yaml in the current directory
   svc status            check live health for all services
-  svc check             find drift between manifest and running system (coming soon)
+  svc check             find drift between manifest and running system
   svc version           print version
 
-Flags (status):
+Flags (status, check):
   --file, -f <path>     manifest file path (default: ./services.yaml)
-  --tag <tag>           show only services with this tag
   --timeout <seconds>   health endpoint timeout (default: 5)
+  --json                machine-readable JSON output
+
+Flags (status):
+  --tag <tag>           show only services with this tag
+
+Flags (check):
+  --no-systemd          skip systemd unit checks
+  --no-version          skip version drift checks
 
 Flags (init):
   --out, -o <path>      output path (default: ./services.yaml)
