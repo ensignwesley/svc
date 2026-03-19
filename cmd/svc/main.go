@@ -7,6 +7,7 @@ import (
 	"github.com/ensignwesley/svc/internal/checker"
 	"github.com/ensignwesley/svc/internal/manifest"
 	"github.com/ensignwesley/svc/internal/output"
+	"github.com/ensignwesley/svc/internal/watcher"
 )
 
 const version = "0.1.0"
@@ -90,6 +91,8 @@ func main() {
 		cmdStatus(args)
 	case "check":
 		cmdCheck(args)
+	case "watch":
+		cmdWatch(args)
 	case "version", "--version", "-v":
 		fmt.Printf("svc version %s\n", version)
 	case "help", "--help", "-h":
@@ -228,6 +231,69 @@ func hasTag(tags []string, tag string) bool {
 		}
 	}
 	return false
+}
+
+// cmdWatch runs the continuous polling loop with state-change alerting.
+func cmdWatch(args []string) {
+	cfg := watcher.Config{
+		ManifestPath:    "services.yaml",
+		StatePath:       watcher.DefaultStatePath(),
+		DeliveryLogPath: watcher.DefaultDeliveryFailurePath(),
+		Interval:        60,
+		FailThreshold:   2,
+		TimeoutSec:      5,
+	}
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--file", "-f":
+			if i+1 >= len(args) {
+				fatal("--file requires a path argument")
+			}
+			i++
+			cfg.ManifestPath = args[i]
+		case "--webhook":
+			if i+1 >= len(args) {
+				fatal("--webhook requires a URL")
+			}
+			i++
+			cfg.WebhookURL = args[i]
+		case "--interval":
+			if i+1 >= len(args) {
+				fatal("--interval requires a value")
+			}
+			i++
+			fmt.Sscanf(args[i], "%d", &cfg.Interval)
+		case "--failures":
+			if i+1 >= len(args) {
+				fatal("--failures requires a value")
+			}
+			i++
+			fmt.Sscanf(args[i], "%d", &cfg.FailThreshold)
+		case "--state":
+			if i+1 >= len(args) {
+				fatal("--state requires a path")
+			}
+			i++
+			cfg.StatePath = args[i]
+		case "--timeout":
+			if i+1 >= len(args) {
+				fatal("--timeout requires a value")
+			}
+			i++
+			fmt.Sscanf(args[i], "%d", &cfg.TimeoutSec)
+		case "--no-systemd":
+			cfg.NoSystemd = true
+		case "--stdout":
+			cfg.Stdout = true
+		default:
+			fatalf("unknown flag: %s", args[i])
+		}
+	}
+
+	if err := watcher.Watch(cfg, os.Stdout); err != nil {
+		fatal(err.Error())
+	}
 }
 
 // cmdCheck diffs the manifest against what's actually running.
