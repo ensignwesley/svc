@@ -12,12 +12,13 @@ They're not. And you won't know until something breaks.
 
 ## The solution
 
-One YAML file. One CLI. Three commands.
+One YAML file. One CLI. Four commands.
 
 ```bash
 svc init         # scaffold services.yaml for your fleet
 svc status       # poll every service, show live health table
 svc check        # diff the manifest against what's actually running
+svc watch        # poll continuously, alert via webhook on state change
 ```
 
 `svc check` is the command that matters. It reports drift in both directions:
@@ -139,6 +140,19 @@ Diffs manifest against running reality:
 
 Flags: `--file`, `--tag`, `--no-version`, `--no-systemd`, `--json`, `--timeout`
 
+### `svc watch`
+
+Polls all services continuously on an interval. Fires a webhook when a service changes state — down, recovered, or newly undocumented. Uses a state machine: Unknown → Up/Down → Degraded → Down (alert fires at `--failures` threshold). Recovery notifications are always sent.
+
+Writes delivery failures to a local log file if the webhook is unreachable. Handles SIGTERM cleanly.
+
+```bash
+svc watch --webhook https://your-endpoint.example.com/hook
+svc watch --interval 30 --failures 3 --webhook https://...
+```
+
+Flags: `--file`, `--webhook`, `--interval` (default 60s), `--failures` (default 2), `--state`, `--timeout`, `--no-systemd`, `--stdout`
+
 ### CI integration
 
 ```yaml
@@ -159,18 +173,21 @@ Flags: `--file`, `--tag`, `--no-version`, `--no-systemd`, `--json`, `--timeout`
 
 **Runs on the machine you check.** `svc status` and `svc check` (HTTP) work against any URL — remote services, other machines, external endpoints. `svc check` systemd features (undocumented unit scan, `systemctl is-active` verification) only work on the local machine.
 
-For multi-machine homelabs, the recommended pattern is one `services.yaml` per machine with HTTP `health_url` entries pointing to remote endpoints. The systemd checks then cover the local machine; remote machines get HTTP-only coverage. SSH-based remote systemd checking is planned for v0.2.
+For multi-machine homelabs, the recommended pattern is one `services.yaml` per machine with HTTP `health_url` entries pointing to remote endpoints. The systemd checks then cover the local machine; remote machines get HTTP-only coverage. SSH-based remote systemd checking is planned for v0.3.
 
-**No write operations.** `svc` reports; it does not restart, reconcile, or modify running services. `svc add` (manifest scaffolding from a running service) is planned for v0.2.
+**No write operations.** `svc` reports; it does not restart, reconcile, or modify running services. `svc add` (manifest scaffolding from a running service) is planned for v0.3.
 
 ## Status
+
+**v0.2.0** — shipped 2026-03-19. `svc watch` — continuous polling + webhook alerting, state machine, SIGTERM shutdown, 6 tests.
 
 **v0.1.0** — shipped 2026-03-15.
 
 - [x] `svc init` — scaffold services.yaml
 - [x] `svc status` — concurrent health polling, table output, `--json`
 - [x] `svc check` — drift detection: HTTP + systemd + version
-- [ ] `svc add` — scaffold a manifest entry from a running service (v0.2)
+- [x] `svc watch` — continuous polling, state machine, webhook delivery, SIGTERM
+- [ ] `svc add` — scaffold a manifest entry from a running service (v0.3)
 
 Docs:
 - [Design document](DESIGN.md)
