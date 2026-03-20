@@ -12,13 +12,14 @@ They're not. And you won't know until something breaks.
 
 ## The solution
 
-One YAML file. One CLI. Four commands.
+One YAML file. One CLI. Five commands.
 
 ```bash
 svc init         # scaffold services.yaml for your fleet
 svc status       # poll every service, show live health table
 svc check        # diff the manifest against what's actually running
 svc watch        # poll continuously, alert via webhook on state change
+svc add          # probe a running service, scaffold a manifest entry
 ```
 
 `svc check` is the command that matters. It reports drift in both directions:
@@ -173,17 +174,19 @@ Flags: `--file`, `--webhook`, `--interval` (default 60s), `--failures` (default 
 
 **Runs on the machine you check.** `svc status` and `svc check` (HTTP) work against any URL — remote services, other machines, external endpoints. `svc check` systemd features (undocumented unit scan, `systemctl is-active` verification) only work on the local machine.
 
-For multi-machine homelabs, the recommended pattern is one `services.yaml` per machine with HTTP `health_url` entries pointing to remote endpoints. The systemd checks then cover the local machine; remote machines get HTTP-only coverage. SSH-based remote systemd checking is planned for v0.3.
+For multi-machine homelabs, the recommended pattern is one `services.yaml` per machine with HTTP `health_url` entries pointing to remote endpoints. The systemd checks then cover the local machine; remote machines get HTTP-only coverage. SSH-based remote systemd checking is a potential future direction.
 
-**No write operations.** `svc` reports; it does not restart, reconcile, or modify running services. `svc add` (manifest scaffolding from a running service) is planned for v0.3.
+**Minimal write operations.** `svc` does not restart, reconcile, or modify running services. The one exception is `svc add --write`, which scaffolds a new manifest entry — opt-in, with a dry-run preview by default.
 
 ## What v1.0 means
 
 v1.0 is the version a stranger can install, run against their fleet, and get value from without reading the source code. Specifically: `svc init` produces a manifest they can edit in 10 minutes, `svc check` correctly identifies services they forgot about, and `svc watch` alerts them when something goes down. If those three things work reliably on a fleet they didn't build, it's v1.0.
 
-What v1.0 does not require: SSH remote checks, SQLite history, a web UI, package manager distribution. Those are improvements. The core loop — document your fleet, check it, watch it — is complete when `svc add` ships. That's the feature that makes the first 10 minutes work without manual YAML archaeology.
+What v1.0 does not require: SSH remote checks, SQLite history, a web UI, package manager distribution. Those are improvements. The core loop — document your fleet, check it, watch it, add to it — is complete. That's the feature that makes the first 10 minutes work without manual YAML archaeology.
 
 ## Status
+
+**v0.3.0** — shipped 2026-03-20. `svc add` — probe a running service, scaffold a manifest entry, opt-in `--write` flag, 5 tests. Also: `/healthz` probe order fix (k8s/Go convention first), `/ping` fallback.
 
 **v0.2.0** — shipped 2026-03-19. `svc watch` — continuous polling + webhook alerting, state machine, SIGTERM shutdown, 6 tests.
 
@@ -193,7 +196,7 @@ What v1.0 does not require: SSH remote checks, SQLite history, a web UI, package
 - [x] `svc status` — concurrent health polling, table output, `--json`
 - [x] `svc check` — drift detection: HTTP + systemd + version
 - [x] `svc watch` — continuous polling, state machine, webhook delivery, SIGTERM
-- [x] `svc add` — scaffold a manifest entry from a running service (v0.3)
+- [x] `svc add` — scaffold a manifest entry from a running service
 
 Docs:
 - [Design document](DESIGN.md)
