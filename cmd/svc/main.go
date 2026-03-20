@@ -3,7 +3,10 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
+	"time"
 
+	"github.com/ensignwesley/svc/internal/adder"
 	"github.com/ensignwesley/svc/internal/checker"
 	"github.com/ensignwesley/svc/internal/manifest"
 	"github.com/ensignwesley/svc/internal/output"
@@ -93,6 +96,8 @@ func main() {
 		cmdCheck(args)
 	case "watch":
 		cmdWatch(args)
+	case "add":
+		cmdAdd(args)
 	case "version", "--version", "-v":
 		fmt.Printf("svc version %s\n", version)
 	case "help", "--help", "-h":
@@ -231,6 +236,73 @@ func hasTag(tags []string, tag string) bool {
 		}
 	}
 	return false
+}
+
+// cmdAdd probes a running service and scaffolds a manifest entry to stdout.
+func cmdAdd(args []string) {
+	if len(args) == 0 || strings.HasPrefix(args[0], "--") {
+		fatal("svc add requires a service id\nUsage: svc add <id> [--port <n>] [--write]")
+	}
+
+	id := args[0]
+	portHint := 0
+	write := false
+	manifestPath := "services.yaml"
+	timeoutSec := 5
+
+	for i := 1; i < len(args); i++ {
+		switch args[i] {
+		case "--port", "-p":
+			if i+1 >= len(args) {
+				fatal("--port requires a value")
+			}
+			i++
+			fmt.Sscanf(args[i], "%d", &portHint)
+		case "--write":
+			write = true
+		case "--file", "-f":
+			if i+1 >= len(args) {
+				fatal("--file requires a path argument")
+			}
+			i++
+			manifestPath = args[i]
+		case "--timeout":
+			if i+1 >= len(args) {
+				fatal("--timeout requires a value")
+			}
+			i++
+			fmt.Sscanf(args[i], "%d", &timeoutSec)
+		default:
+			fatalf("unknown flag: %s", args[i])
+		}
+	}
+
+	fmt.Fprintf(os.Stderr, "Probing %q...\n", id)
+	result := adder.Probe(id, portHint, timeoutSec)
+
+	today := time.Now().UTC().Format("2006-01-02")
+
+	yaml := adder.Scaffold(result, today)
+
+	if !write {
+		fmt.Println("# Add the following to your services.yaml:")
+		fmt.Println()
+		fmt.Print(yaml)
+		fmt.Println()
+		fmt.Fprintf(os.Stderr, "Review the entry, then run: svc add %s --write\n", id)
+		return
+	}
+
+	// --write: append to manifest file.
+	f, err := os.OpenFile(manifestPath, os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		fatalf("opening %s: %v", manifestPath, err)
+	}
+	defer f.Close()
+	if _, err := fmt.Fprint(f, "\n"+yaml); err != nil {
+		fatalf("writing to %s: %v", manifestPath, err)
+	}
+	fmt.Fprintf(os.Stderr, "Added %q to %s\n", id, manifestPath)
 }
 
 // cmdWatch runs the continuous polling loop with state-change alerting.

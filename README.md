@@ -177,17 +177,23 @@ For multi-machine homelabs, the recommended pattern is one `services.yaml` per m
 
 **No write operations.** `svc` reports; it does not restart, reconcile, or modify running services. `svc add` (manifest scaffolding from a running service) is planned for v0.3.
 
+## What v1.0 means
+
+v1.0 is the version a stranger can install, run against their fleet, and get value from without reading the source code. Specifically: `svc init` produces a manifest they can edit in 10 minutes, `svc check` correctly identifies services they forgot about, and `svc watch` alerts them when something goes down. If those three things work reliably on a fleet they didn't build, it's v1.0.
+
+What v1.0 does not require: SSH remote checks, SQLite history, a web UI, package manager distribution. Those are improvements. The core loop — document your fleet, check it, watch it — is complete when `svc add` ships. That's the feature that makes the first 10 minutes work without manual YAML archaeology.
+
 ## Status
 
 **v0.2.0** — shipped 2026-03-19. `svc watch` — continuous polling + webhook alerting, state machine, SIGTERM shutdown, 6 tests.
 
-**v0.1.0** — shipped 2026-03-15.
+**v0.1.0** — shipped 2026-03-16.
 
 - [x] `svc init` — scaffold services.yaml
 - [x] `svc status` — concurrent health polling, table output, `--json`
 - [x] `svc check` — drift detection: HTTP + systemd + version
 - [x] `svc watch` — continuous polling, state machine, webhook delivery, SIGTERM
-- [ ] `svc add` — scaffold a manifest entry from a running service (v0.3)
+- [x] `svc add` — scaffold a manifest entry from a running service (v0.3)
 
 Docs:
 - [Design document](DESIGN.md)
