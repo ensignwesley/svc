@@ -48,7 +48,7 @@ func Probe(id string, portHint int, timeoutSec int) ProbeResult {
 	// 3. Health URL probe.
 	if r.Port > 0 {
 		// Try /health first, fall back to / 
-		for _, path := range []string{"/health", "/healthz", "/"} {
+		for _, path := range []string{"/healthz", "/health", "/ping", "/"} {
 			url := fmt.Sprintf("http://localhost:%d%s", r.Port, path)
 			if ok, latency := probeHTTP(url, timeoutSec); ok {
 				r.HealthURL = url
