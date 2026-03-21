@@ -170,6 +170,41 @@ Flags: `--file`, `--webhook`, `--interval` (default 60s), `--failures` (default 
 - **CI-friendly exits** — 0 (clean) or 1 (drift)
 - **Go stdlib + gopkg.in/yaml.v3** — one external dependency
 
+## Common setup: services behind a reverse proxy
+
+If your services run behind nginx (or Caddy, Traefik, etc.), the internal port and the public health endpoint are different things. `svc add` probes `localhost:<port>/health` — which won't reach a service that only accepts connections through the proxy.
+
+Use `health_url` with the public endpoint instead of `port`:
+
+```yaml
+services:
+  dead-drop:
+    description: "Zero-knowledge secrets sharing"
+    port: 3001                                          # still useful for documentation
+    health_url: "https://example.com/drop/health"      # what svc actually polls
+    systemd_unit: "dead-drop.service"
+```
+
+`svc add` will tell you when it can't find a health endpoint on the local port — that's the signal to add an explicit `health_url`. The note in the scaffold output says exactly what to fix.
+
+## How svc check identifies undocumented units
+
+`svc check` scans running systemd units to find services you're running but haven't documented. It distinguishes operator-installed units from OS-managed units by file location:
+
+- **Operator units** (flagged if not in manifest): `/etc/systemd/system/` and `~/.config/systemd/user/`
+- **OS units** (ignored): `/lib/systemd/system/` and `/usr/lib/systemd/system/`
+
+This means `nginx.service`, `ssh.service`, `cron.service` — all installed by the package manager — are silently skipped. Only units you explicitly created and enabled appear as undocumented drift.
+
+Use `manifest.ignore_units` for operator units you deliberately exclude from the manifest (e.g. services managed by another tool):
+
+```yaml
+manifest:
+  version: 1
+  ignore_units:
+    - openclaw-gateway.service
+```
+
 ## Scope: what svc checks and what it doesn't
 
 **Runs on the machine you check.** `svc status` and `svc check` (HTTP) work against any URL — remote services, other machines, external endpoints. `svc check` systemd features (undocumented unit scan, `systemctl is-active` verification) only work on the local machine.

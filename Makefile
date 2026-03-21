@@ -22,3 +22,12 @@ install-hooks:
 	cp .git/hooks/pre-commit .git/hooks/pre-commit
 	chmod +x .git/hooks/pre-commit
 	@echo "Pre-commit hook installed."
+
+# Build release binaries for common platforms
+release:
+	@mkdir -p dist
+	GOOS=linux  GOARCH=amd64 go build -o dist/svc-linux-amd64  ./cmd/svc/
+	GOOS=linux  GOARCH=arm64 go build -o dist/svc-linux-arm64  ./cmd/svc/
+	GOOS=darwin GOARCH=arm64 go build -o dist/svc-darwin-arm64 ./cmd/svc/
+	@echo "Binaries in dist/:"
+	@ls -lh dist/
