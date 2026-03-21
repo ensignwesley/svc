@@ -26,8 +26,11 @@ install-hooks:
 # Build release binaries for common platforms
 release:
 	@mkdir -p dist
-	GOOS=linux  GOARCH=amd64 go build -o dist/svc-linux-amd64  ./cmd/svc/
-	GOOS=linux  GOARCH=arm64 go build -o dist/svc-linux-arm64  ./cmd/svc/
-	GOOS=darwin GOARCH=arm64 go build -o dist/svc-darwin-arm64 ./cmd/svc/
+	@VERSION=$$(grep 'const version' cmd/svc/main.go | grep -o '"[^"]*"' | tr -d '"'); \
+	echo "Building svc v$$VERSION..."; \
+	GOOS=linux  GOARCH=amd64 go build -ldflags="-s -w -X main.version=$$VERSION" -o dist/svc-linux-amd64  ./cmd/svc/; \
+	GOOS=linux  GOARCH=arm64 go build -ldflags="-s -w -X main.version=$$VERSION" -o dist/svc-linux-arm64  ./cmd/svc/; \
+	GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w -X main.version=$$VERSION" -o dist/svc-darwin-arm64 ./cmd/svc/; \
+	GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w -X main.version=$$VERSION" -o dist/svc-darwin-amd64 ./cmd/svc/
 	@echo "Binaries in dist/:"
 	@ls -lh dist/

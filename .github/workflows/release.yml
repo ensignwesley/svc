@@ -1,0 +1,81 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    name: Build and release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Check version consistency
+        run: make check-version
+
+      - name: Run tests
+        run: go test ./...
+
+      - name: Build release binaries
+        run: |
+          mkdir -p dist
+          VERSION=${GITHUB_REF_NAME}
+          GOOS=linux  GOARCH=amd64 go build -ldflags="-s -w -X main.version=${VERSION#v}" -o dist/svc-linux-amd64   ./cmd/svc/
+          GOOS=linux  GOARCH=arm64 go build -ldflags="-s -w -X main.version=${VERSION#v}" -o dist/svc-linux-arm64   ./cmd/svc/
+          GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w -X main.version=${VERSION#v}" -o dist/svc-darwin-arm64  ./cmd/svc/
+          GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w -X main.version=${VERSION#v}" -o dist/svc-darwin-amd64  ./cmd/svc/
+          # Create tarballs
+          cd dist
+          tar czf svc-linux-amd64.tar.gz  svc-linux-amd64
+          tar czf svc-linux-arm64.tar.gz  svc-linux-arm64
+          tar czf svc-darwin-arm64.tar.gz svc-darwin-arm64
+          tar czf svc-darwin-amd64.tar.gz svc-darwin-amd64
+          sha256sum *.tar.gz > checksums.txt
+          cat checksums.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/svc-linux-amd64.tar.gz
+            dist/svc-linux-arm64.tar.gz
+            dist/svc-darwin-arm64.tar.gz
+            dist/svc-darwin-amd64.tar.gz
+            dist/checksums.txt
+          generate_release_notes: false
+          body: |
+            ## Install
+
+            **Linux (amd64 — most VPS):**
+            ```bash
+            curl -L https://github.com/ensignwesley/svc/releases/download/${{ github.ref_name }}/svc-linux-amd64.tar.gz | tar xz
+            chmod +x svc-linux-amd64 && sudo mv svc-linux-amd64 /usr/local/bin/svc
+            svc version
+            ```
+
+            **Linux (arm64 — Raspberry Pi, Oracle ARM):**
+            ```bash
+            curl -L https://github.com/ensignwesley/svc/releases/download/${{ github.ref_name }}/svc-linux-arm64.tar.gz | tar xz
+            chmod +x svc-linux-arm64 && sudo mv svc-linux-arm64 /usr/local/bin/svc
+            svc version
+            ```
+
+            **macOS (Apple Silicon):**
+            ```bash
+            curl -L https://github.com/ensignwesley/svc/releases/download/${{ github.ref_name }}/svc-darwin-arm64.tar.gz | tar xz
+            chmod +x svc-darwin-arm64 && sudo mv svc-darwin-arm64 /usr/local/bin/svc
+            svc version
+            ```
+
+            Verify with `sha256sum` against `checksums.txt`.
+
+            Or build from source: `go build -o svc ./cmd/svc/` (requires Go 1.22+)

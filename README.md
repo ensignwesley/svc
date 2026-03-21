@@ -29,19 +29,37 @@ svc add          # probe a running service, scaffold a manifest entry
 
 The second direction is the one that bites you.
 
-## Quick start
+## Install
 
+**Linux (amd64 — most VPS):**
+```bash
+curl -L https://github.com/ensignwesley/svc/releases/latest/download/svc-linux-amd64.tar.gz | tar xz
+chmod +x svc-linux-amd64 && sudo mv svc-linux-amd64 /usr/local/bin/svc
+svc version
+```
+
+**Linux (arm64 — Raspberry Pi, Oracle ARM):**
+```bash
+curl -L https://github.com/ensignwesley/svc/releases/latest/download/svc-linux-arm64.tar.gz | tar xz
+chmod +x svc-linux-arm64 && sudo mv svc-linux-arm64 /usr/local/bin/svc
+svc version
+```
+
+**Build from source** (requires Go 1.22+):
 ```bash
 git clone https://github.com/ensignwesley/svc
 cd svc
 go build -o svc ./cmd/svc/
-./svc init
-# edit services.yaml to describe your fleet
-./svc status
-./svc check
 ```
 
-Requires Go 1.22+.
+## Quick start
+
+```bash
+svc init
+# edit services.yaml to describe your fleet
+svc status
+svc check
+```
 
 ## Example output
 
@@ -220,6 +238,8 @@ v1.0 is the version a stranger can install, run against their fleet, and get val
 What v1.0 does not require: SSH remote checks, SQLite history, a web UI, package manager distribution. Those are improvements. The core loop — document your fleet, check it, watch it, add to it — is complete. That's the feature that makes the first 10 minutes work without manual YAML archaeology.
 
 ## Status
+
+**v0.3.1** — shipped 2026-03-21. GitHub Actions release workflow, pre-built binaries (linux/amd64, linux/arm64, darwin/arm64, darwin/amd64), install instructions, reverse proxy docs, systemd unit detection explanation.
 
 **v0.3.0** — shipped 2026-03-20. `svc add` — probe a running service, scaffold a manifest entry, opt-in `--write` flag, 5 tests. Also: `/healthz` probe order fix (k8s/Go convention first), `/ping` fallback.
 
