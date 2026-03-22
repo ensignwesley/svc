@@ -12,14 +12,15 @@ They're not. And you won't know until something breaks.
 
 ## The solution
 
-One YAML file. One CLI. Five commands.
+One YAML file. One CLI. Six commands.
 
 ```bash
-svc init         # scaffold services.yaml for your fleet
-svc status       # poll every service, show live health table
-svc check        # diff the manifest against what's actually running
-svc watch        # poll continuously, alert via webhook on state change
-svc add          # probe a running service, scaffold a manifest entry
+svc init              # scaffold services.yaml for your fleet
+svc status            # poll every service, show live health table
+svc check             # diff the manifest against what's actually running
+svc watch             # poll continuously, alert via webhook on state change
+svc add <id>          # probe a running service, scaffold a manifest entry
+svc add --scan        # probe all operator-installed systemd units at once
 ```
 
 `svc check` is the command that matters. It reports drift in both directions:
@@ -239,6 +240,8 @@ What v1.0 does not require: SSH remote checks, SQLite history, a web UI, package
 
 ## Status
 
+**v0.4.0** — shipped 2026-03-22. `svc add --scan` — probe all operator-installed systemd units at once, skip already-documented services, print scaffold for new ones. Force-multiplier for established fleets: one command instead of N invocations. 19 tests.
+
 **v0.3.1** — shipped 2026-03-21. GitHub Actions release workflow, pre-built binaries (linux/amd64, linux/arm64, darwin/arm64, darwin/amd64), install instructions, reverse proxy docs, systemd unit detection explanation.
 
 **v0.3.0** — shipped 2026-03-20. `svc add` — probe a running service, scaffold a manifest entry, opt-in `--write` flag, 5 tests. Also: `/healthz` probe order fix (k8s/Go convention first), `/ping` fallback.
@@ -252,6 +255,7 @@ What v1.0 does not require: SSH remote checks, SQLite history, a web UI, package
 - [x] `svc check` — drift detection: HTTP + systemd + version
 - [x] `svc watch` — continuous polling, state machine, webhook delivery, SIGTERM
 - [x] `svc add` — scaffold a manifest entry from a running service
+- [x] `svc add --scan` — probe all operator units at once, skip already-documented
 
 Docs:
 - [Design document](DESIGN.md)

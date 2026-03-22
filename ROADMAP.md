@@ -1,38 +1,39 @@
 # svc Roadmap
 
-**Current version:** v0.3.1  
+**Current version:** v0.4.0  
 **Last updated:** 2026-03-22
 
 ---
 
 ## Where we are
 
-Five commands. Pre-built binaries. Eleven tests. A working manifest for a 7-service fleet, polled continuously, with webhook alerting.
+Six commands. Pre-built binaries. Nineteen tests. A working manifest for a 7-service fleet, polled continuously, with webhook alerting, and a single-command fleet scanner for onboarding.
 
-The core loop is complete: document your fleet, check it, watch it, add to it. What's missing is the step before that — getting an existing fleet documented in the first place — and the step after — knowing what your fleet looked like last week, not just right now.
+The core loop is complete: document your fleet, check it, watch it, add to it — either one service at a time or all at once with `svc add --scan`. What's missing now is the step after: knowing what your fleet looked like last week, not just right now.
 
 ---
 
-## v0.4 — The Three Features
+## v0.4 — Shipped ✅
 
-### 1. `svc add --scan` (force multiplier)
+### ~~1. `svc add --scan` (force multiplier)~~ — DONE
 
-**The problem:** Running `svc add` once per service is fine for a new fleet. For someone with 12 services already running, it's 12 invocations plus manual YAML editing. The first 10 minutes of `svc` for an established fleet operator is too slow.
+~~**The problem:** Running `svc add` once per service is fine for a new fleet. For someone with 12 services already running, it's 12 invocations plus manual YAML editing.~~
 
-**What it does:** Scans all operator-installed units in `/etc/systemd/system/` and `~/.config/systemd/user/`, probes each one's health endpoint, and generates a complete `services.yaml` scaffold. Dry-run by default; `--write` to commit.
+**Shipped.** `svc add --scan` scans all operator-installed units in `/etc/systemd/system/` and `~/.config/systemd/user/`, probes each one, skips already-documented services, and outputs scaffold YAML for new ones. Dry-run by default; `--write` to commit.
 
 ```bash
-svc add --scan          # scaffold all operator units, print to stdout
+svc add --scan          # scaffold unregistered units, print to stdout
 svc add --scan --write  # write directly to services.yaml
+svc add --scan --include-known  # re-scaffold already-documented services too
 ```
 
-**Why it's the force multiplier:** Every other feature improves the experience for someone who already has a manifest. This is what gets them to a manifest in the first place. Without it, the onboarding story for an established fleet is "go through your services one by one." With it, it's "run one command, review the output, done."
-
-**Scope:** Same probe logic as `svc add` — `/healthz` → `/health` → `/ping` → `/` in order. Same notes on what couldn't be detected. No new concepts; just batch mode.
+19 tests passing.
 
 ---
 
-### 2. SQLite history (`svc check --record`, `svc history`)
+## v0.5 — The Next Two Features
+
+### 1. SQLite history (`svc check --record`, `svc history`)
 
 **The problem:** `svc check` is a snapshot. It tells you what's true right now. It can't tell you: was this service down an hour ago? How often does it go unhealthy? What's the uptime over the last 30 days?
 
@@ -60,7 +61,7 @@ Uptime (7d): 99.2% (1 incident, 8 minutes)
 
 ---
 
-### 3. SSH remote systemd checks
+### 2. SSH remote systemd checks
 
 **The problem:** `svc status` and `svc check` HTTP polling work against any URL — remote services, other machines. But the systemd half (undocumented unit scan, `systemctl is-active`) only runs locally. A homelab operator with two machines can only get full drift detection on one of them.
 
@@ -84,9 +85,9 @@ services:
 
 ## The force multiplier answer
 
-**`svc add --scan`.**
+**`svc add --scan` — shipped in v0.4.0.**
 
-Not SSH checks (high value, but serves existing users). Not history (high value, but incremental). The scan command is the one that determines whether someone with an established fleet adopts the tool at all. The onboarding moment is the highest-leverage moment in the adoption lifecycle. Make it fast and the rest follows. Make it slow and people evaluate, nod, and go back to their notes.doc.
+The onboarding moment is the highest-leverage moment in the adoption lifecycle. Make it fast and the rest follows. Make it slow and people evaluate, nod, and go back to their notes.doc.
 
 ---
 
@@ -94,13 +95,13 @@ Not SSH checks (high value, but serves existing users). Not history (high value,
 
 v1.0 is when a stranger with an established multi-machine homelab can:
 
-1. Install with one curl command (done — v0.3.1)
-2. Scaffold a working manifest in under 5 minutes (done after `svc add --scan`)
+1. Install with one curl command ✅ (done — v0.3.1)
+2. Scaffold a working manifest in under 5 minutes ✅ (done — v0.4.0, `svc add --scan`)
 3. Get full drift detection on all their machines, not just one (`svc check` with SSH)
-4. Know when something breaks before they notice it themselves (`svc watch` — done)
-5. Look up when something last broke and how long it was down (`svc history` — v0.4)
+4. Know when something breaks before they notice it themselves ✅ (`svc watch` — done)
+5. Look up when something last broke and how long it was down (`svc history` — v0.5)
 
-**The v1.0 gate is SSH remote checks.** Items 1, 2, 4 are complete. Item 5 ships in v0.4. Item 3 is the last one. When SSH remote checks ship and work reliably, that's v1.0. Not before.
+**The v1.0 gate is SSH remote checks.** Items 1, 2, 4 are complete. Item 5 ships in v0.5. Item 3 is the last one. When SSH remote checks ship and work reliably, that's v1.0. Not before.
 
 What v1.0 does not require:
 - Web UI
