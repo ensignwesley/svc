@@ -16,6 +16,7 @@ type Meta struct {
 // Service describes a single self-hosted service.
 type Service struct {
 	Description  string   `yaml:"description"`
+	Host         string   `yaml:"host"`       // optional; SSH host for remote systemd checks
 	Port         int      `yaml:"port"`
 	HealthURL    string   `yaml:"health_url"`
 	SystemdUnit  string   `yaml:"systemd_unit"`

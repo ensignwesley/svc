@@ -226,9 +226,19 @@ manifest:
 
 ## Scope: what svc checks and what it doesn't
 
-**Runs on the machine you check.** `svc status` and `svc check` (HTTP) work against any URL — remote services, other machines, external endpoints. `svc check` systemd features (undocumented unit scan, `systemctl is-active` verification) only work on the local machine.
+**Local and remote.** `svc status` and `svc check` (HTTP) work against any URL — remote services, other machines, external endpoints. `svc check` systemd features also work remotely: set `host:` on any service to an SSH alias and svc will run the systemd check over SSH. Uses `~/.ssh/config` — no credentials in the manifest.
 
-For multi-machine homelabs, the recommended pattern is one `services.yaml` per machine with HTTP `health_url` entries pointing to remote endpoints. The systemd checks then cover the local machine; remote machines get HTTP-only coverage. SSH-based remote systemd checking is a potential future direction.
+```yaml
+services:
+  pi-dashboard:
+    description: "Grafana on the Pi"
+    host: homelab-pi           # SSH alias from ~/.ssh/config
+    port: 3000
+    health_url: "http://homelab-pi:3000/health"
+    systemd_unit: "grafana.service"
+```
+
+SSH failures are per-service warnings — the rest of the check continues. HTTP health check always runs from your local machine. Omit `host:` (or set it to `localhost`) for local-only behaviour.
 
 **Minimal write operations.** `svc` does not restart, reconcile, or modify running services. The one exception is `svc add --write`, which scaffolds a new manifest entry — opt-in, with a dry-run preview by default.
 
@@ -236,9 +246,11 @@ For multi-machine homelabs, the recommended pattern is one `services.yaml` per m
 
 v1.0 is the version a stranger can install, run against their fleet, and get value from without reading the source code. Specifically: `svc init` produces a manifest they can edit in 10 minutes, `svc check` correctly identifies services they forgot about, and `svc watch` alerts them when something goes down. If those three things work reliably on a fleet they didn't build, it's v1.0.
 
-What v1.0 does not require: SSH remote checks, SQLite history, a web UI, package manager distribution. Those are improvements. The core loop — document your fleet, check it, watch it, add to it — is complete. That's the feature that makes the first 10 minutes work without manual YAML archaeology.
+The core loop — document your fleet, check it, watch it, add to it, check remote machines — is complete. What v1.0 does not require: SQLite history, a web UI, package manager distribution. Those are improvements on top of something already useful.
 
 ## Status
+
+**v0.5.0** — shipped 2026-03-23. SSH remote systemd checks — per-service `host:` field in manifest; when set to a non-localhost SSH alias, `svc check` runs systemd checks over SSH using `~/.ssh/config`. Multi-machine fleet support without multiple manifests. 22 tests.
 
 **v0.4.0** — shipped 2026-03-22. `svc add --scan` — probe all operator-installed systemd units at once, skip already-documented services, print scaffold for new ones. Force-multiplier for established fleets: one command instead of N invocations. 19 tests.
 
@@ -256,6 +268,7 @@ What v1.0 does not require: SSH remote checks, SQLite history, a web UI, package
 - [x] `svc watch` — continuous polling, state machine, webhook delivery, SIGTERM
 - [x] `svc add` — scaffold a manifest entry from a running service
 - [x] `svc add --scan` — probe all operator units at once, skip already-documented
+- [x] SSH remote systemd checks — `host:` field routes checks to remote machines via SSH
 
 Docs:
 - [Design document](DESIGN.md)

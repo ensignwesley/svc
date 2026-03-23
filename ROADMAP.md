@@ -1,15 +1,15 @@
 # svc Roadmap
 
-**Current version:** v0.4.0  
-**Last updated:** 2026-03-22
+**Current version:** v0.5.0  
+**Last updated:** 2026-03-23
 
 ---
 
 ## Where we are
 
-Six commands. Pre-built binaries. Nineteen tests. A working manifest for a 7-service fleet, polled continuously, with webhook alerting, and a single-command fleet scanner for onboarding.
+Six commands. Pre-built binaries. Twenty-two tests. A working manifest for a 7-service fleet, polled continuously, with webhook alerting, single-command fleet scanner for onboarding, and SSH remote systemd checks for multi-machine fleets.
 
-The core loop is complete: document your fleet, check it, watch it, add to it — either one service at a time or all at once with `svc add --scan`. What's missing now is the step after: knowing what your fleet looked like last week, not just right now.
+The core loop is complete: document your fleet, check it, watch it, add to it. Local or remote — `svc check` now handles both, using `~/.ssh/config` for auth and routing through SSH only when `host:` is set to a non-localhost value.
 
 ---
 
@@ -31,7 +31,31 @@ svc add --scan --include-known  # re-scaffold already-documented services too
 
 ---
 
-## v0.5 — The Next Two Features
+## v0.5 — Shipped ✅
+
+### ~~2. SSH remote systemd checks~~ — DONE
+
+~~**The problem:** `svc status` and `svc check` HTTP polling work against any URL — remote services, other machines. But the systemd half only runs locally.~~
+
+**Shipped.** Per-service `host:` field in the manifest. When set to a non-localhost value, `svc check` SSHes in and runs the systemd checks remotely. Uses `~/.ssh/config` — no credentials in the manifest, ever.
+
+```yaml
+services:
+  pi-dashboard:
+    description: "Grafana on the Pi"
+    host: homelab-pi           # resolved via ~/.ssh/config
+    port: 3000
+    health_url: "http://homelab-pi:3000/health"
+    systemd_unit: "grafana.service"
+```
+
+SSH failures are warnings on that service, not failures of the whole check. HTTP health check still runs from the local machine regardless.
+
+22 tests passing.
+
+---
+
+## v0.6 — The Next Feature
 
 ### 1. SQLite history (`svc check --record`, `svc history`)
 
@@ -77,10 +101,6 @@ services:
     systemd_unit: "grafana.service"
 ```
 
-**Scope boundary:** `~/.ssh/config` + key-based auth only. No password auth, no credential fields in the manifest. If SSH fails, it's a warning on that service, not a failure of the whole check. The HTTP health check still runs from the local machine regardless.
-
-**Why it's in v0.4 and not earlier:** It's the v1.0 gate (see below). A tool for self-hosters who manage multiple machines needs multi-machine support. Without it, you need one `services.yaml` per machine and no single view of the whole fleet.
-
 ---
 
 ## The force multiplier answer
@@ -91,17 +111,17 @@ The onboarding moment is the highest-leverage moment in the adoption lifecycle. 
 
 ---
 
-## v1.0
+## v1.0 — The line
 
 v1.0 is when a stranger with an established multi-machine homelab can:
 
 1. Install with one curl command ✅ (done — v0.3.1)
 2. Scaffold a working manifest in under 5 minutes ✅ (done — v0.4.0, `svc add --scan`)
-3. Get full drift detection on all their machines, not just one (`svc check` with SSH)
+3. Get full drift detection on all their machines, not just one ✅ (done — v0.5.0, SSH remote systemd checks)
 4. Know when something breaks before they notice it themselves ✅ (`svc watch` — done)
-5. Look up when something last broke and how long it was down (`svc history` — v0.5)
+5. Look up when something last broke and how long it was down (`svc history` — v0.6)
 
-**The v1.0 gate is SSH remote checks.** Items 1, 2, 4 are complete. Item 5 ships in v0.5. Item 3 is the last one. When SSH remote checks ship and work reliably, that's v1.0. Not before.
+**Items 1–4 are complete.** Item 5 (`svc history`) ships in v0.6. When that lands, v1.0 is done.
 
 What v1.0 does not require:
 - Web UI
