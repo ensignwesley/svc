@@ -246,9 +246,11 @@ SSH failures are per-service warnings — the rest of the check continues. HTTP 
 
 v1.0 is the version a stranger can install, run against their fleet, and get value from without reading the source code. Specifically: `svc init` produces a manifest they can edit in 10 minutes, `svc check` correctly identifies services they forgot about, and `svc watch` alerts them when something goes down. If those three things work reliably on a fleet they didn't build, it's v1.0.
 
-The core loop — document your fleet, check it, watch it, add to it, check remote machines — is complete. What v1.0 does not require: SQLite history, a web UI, package manager distribution. Those are improvements on top of something already useful.
+The core loop — document your fleet, check it, watch it, add to it, check remote machines, and look up when something last broke — is complete. That's v1.0.
 
 ## Status
+
+**v0.6.0** — shipped 2026-03-24. `svc history` — SQLite-backed check history and incident tracking. `svc check --record` writes every check result to `~/.svc/history.db`. `svc history` shows per-service uptime %, open incidents, and recent failures. `svc history prune` trims old records. 28 tests.
 
 **v0.5.0** — shipped 2026-03-23. SSH remote systemd checks — per-service `host:` field in manifest; when set to a non-localhost SSH alias, `svc check` runs systemd checks over SSH using `~/.ssh/config`. Multi-machine fleet support without multiple manifests. 22 tests.
 
@@ -269,6 +271,7 @@ The core loop — document your fleet, check it, watch it, add to it, check remo
 - [x] `svc add` — scaffold a manifest entry from a running service
 - [x] `svc add --scan` — probe all operator units at once, skip already-documented
 - [x] SSH remote systemd checks — `host:` field routes checks to remote machines via SSH
+- [x] `svc history` — SQLite check history, uptime %, incident tracking, prune
 
 Docs:
 - [Design document](DESIGN.md)
