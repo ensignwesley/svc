@@ -94,18 +94,18 @@ func (h *DB) Record(c CheckRow) error {
 		if err == sql.ErrNoRows {
 			// First failure in a new incident — open it now.
 			_, err = tx.Exec(
-				`INSERT INTO incidents (service_id, host, started_at, check_count, first_error)
-				 VALUES (?, ?, ?, 1, ?)`,
-				c.ServiceID, host, ts, c.Error,
+				`INSERT INTO incidents (service_id, host, started_at, check_count, first_error, last_error)
+				 VALUES (?, ?, ?, 1, ?, ?)`,
+				c.ServiceID, host, ts, c.Error, c.Error,
 			)
 			if err != nil {
 				return fmt.Errorf("opening incident: %w", err)
 			}
 		} else if err == nil {
-			// Existing open incident — increment check count.
+			// Existing open incident — increment check count and update last_error.
 			_, err = tx.Exec(
-				`UPDATE incidents SET check_count = check_count + 1 WHERE id = ?`,
-				incidentID,
+				`UPDATE incidents SET check_count = check_count + 1, last_error = ? WHERE id = ?`,
+				c.Error, incidentID,
 			)
 			if err != nil {
 				return fmt.Errorf("updating incident: %w", err)
@@ -153,6 +153,7 @@ type Incident struct {
 	DurationSec *int64
 	CheckCount  int
 	FirstError  *string
+	LastError   *string
 }
 
 // IsOpen returns true if the incident has not yet recovered.
@@ -175,7 +176,7 @@ func (h *DB) QueryIncidents(serviceID string, sinceTS int64, limit int) ([]Incid
 	args = append(args, limit)
 
 	rows, err := h.db.Query(
-		`SELECT id, service_id, host, started_at, recovered_at, duration_sec, check_count, first_error
+		`SELECT id, service_id, host, started_at, recovered_at, duration_sec, check_count, first_error, last_error
 		 FROM incidents `+where+`
 		 ORDER BY started_at DESC LIMIT ?`,
 		args...,
@@ -190,7 +191,7 @@ func (h *DB) QueryIncidents(serviceID string, sinceTS int64, limit int) ([]Incid
 // QueryOpenIncidents returns all currently-open incidents (service still down).
 func (h *DB) QueryOpenIncidents() ([]Incident, error) {
 	rows, err := h.db.Query(
-		`SELECT id, service_id, host, started_at, recovered_at, duration_sec, check_count, first_error
+		`SELECT id, service_id, host, started_at, recovered_at, duration_sec, check_count, first_error, last_error
 		 FROM incidents WHERE recovered_at IS NULL
 		 ORDER BY started_at ASC`,
 	)
@@ -222,6 +223,65 @@ func (h *DB) UptimePct(serviceID string, sinceTS int64) (float64, int, error) {
 	return float64(total-down) / float64(total) * 100, incidents, nil
 }
 
+// ServicesSeen returns distinct service IDs that have checks since sinceTS.
+func (h *DB) ServicesSeen(sinceTS int64) ([]string, error) {
+	rows, err := h.db.Query(
+		`SELECT DISTINCT service_id FROM checks WHERE checked_at >= ? ORDER BY service_id`,
+		sinceTS,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var services []string
+	for rows.Next() {
+		var s string
+		if err := rows.Scan(&s); err != nil {
+			return nil, err
+		}
+		services = append(services, s)
+	}
+	return services, rows.Err()
+}
+
+// RawCheck is a single check row for raw output.
+type RawCheck struct {
+	ServiceID string
+	Host      string
+	CheckedAt time.Time
+	Status    string
+	LatencyMS *int64
+	ErrorStr  *string
+}
+
+// QueryChecks returns raw check rows for a service, most recent first.
+func (h *DB) QueryChecks(serviceID string, sinceTS int64, limit int) ([]RawCheck, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	rows, err := h.db.Query(
+		`SELECT service_id, host, checked_at, status, latency_ms, error
+		 FROM checks WHERE service_id = ? AND checked_at >= ?
+		 ORDER BY checked_at DESC LIMIT ?`,
+		serviceID, sinceTS, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var checks []RawCheck
+	for rows.Next() {
+		var c RawCheck
+		var ts int64
+		if err := rows.Scan(&c.ServiceID, &c.Host, &ts, &c.Status, &c.LatencyMS, &c.ErrorStr); err != nil {
+			return nil, err
+		}
+		c.CheckedAt = time.Unix(ts, 0).UTC()
+		checks = append(checks, c)
+	}
+	return checks, rows.Err()
+}
+
 // Prune deletes checks older than keepSecs. Incidents are never pruned.
 func (h *DB) Prune(keepSecs int64) (int64, error) {
 	cutoff := time.Now().Unix() - keepSecs
@@ -241,7 +301,7 @@ func scanIncidents(rows *sql.Rows) ([]Incident, error) {
 		err := rows.Scan(
 			&inc.ID, &inc.ServiceID, &inc.Host,
 			&startedTS, &recoveredTS,
-			&inc.DurationSec, &inc.CheckCount, &inc.FirstError,
+			&inc.DurationSec, &inc.CheckCount, &inc.FirstError, &inc.LastError,
 		)
 		if err != nil {
 			return nil, err

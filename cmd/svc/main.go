@@ -8,6 +8,7 @@ import (
 
 	"github.com/ensignwesley/svc/internal/adder"
 	"github.com/ensignwesley/svc/internal/checker"
+	"github.com/ensignwesley/svc/internal/history"
 	"github.com/ensignwesley/svc/internal/manifest"
 	"github.com/ensignwesley/svc/internal/output"
 	"github.com/ensignwesley/svc/internal/watcher"
@@ -99,6 +100,8 @@ func main() {
 		cmdWatch(args)
 	case "add":
 		cmdAdd(args)
+	case "history":
+		cmdHistory(args)
 	case "version", "--version", "-v":
 		fmt.Printf("svc version %s\n", version)
 	case "help", "--help", "-h":
@@ -484,6 +487,8 @@ func cmdCheck(args []string) {
 	noSystemd := false
 	timeoutSec := 5
 	jsonOut := false
+	record := false
+	historyPath := history.DefaultPath()
 
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
@@ -505,6 +510,14 @@ func cmdCheck(args []string) {
 			fmt.Sscanf(args[i], "%d", &timeoutSec)
 		case "--json":
 			jsonOut = true
+		case "--record":
+			record = true
+		case "--history-file":
+			if i+1 >= len(args) {
+				fatal("--history-file requires a path")
+			}
+			i++
+			historyPath = args[i]
 		default:
 			fatalf("unknown flag: %s", args[i])
 		}
@@ -563,6 +576,44 @@ func cmdCheck(args []string) {
 
 	// 3. Version checks (stub for now — will add in v0.2).
 	_ = noVersion
+
+	// 3b. Record to history if --record is set.
+	if record {
+		hdb, err := history.Open(historyPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "⚠️  history: could not open db: %v\n", err)
+		} else {
+			defer hdb.Close()
+			now := time.Now().UTC()
+			for _, r := range healthResults {
+				svc := m.Services[r.ServiceID]
+				host := svc.Host
+				if host == "" {
+					host = "localhost"
+				}
+				status := "up"
+				var latPtr *int64
+				var errPtr *string
+				if r.Up {
+					lat := r.LatencyMS
+					latPtr = &lat
+				} else {
+					status = "down"
+					if r.Err != "" {
+						errPtr = &r.Err
+					}
+				}
+				_ = hdb.Record(history.CheckRow{
+					ServiceID: r.ServiceID,
+					Host:      host,
+					CheckedAt: now,
+					Status:    status,
+					LatencyMS: latPtr,
+					Error:     errPtr,
+				})
+			}
+		}
+	}
 
 	// 4. Undocumented units scan.
 	var undocumented []string
@@ -644,6 +695,185 @@ func cmdCheck(args []string) {
 	}
 	fmt.Printf("Summary: %d drift detected.\n", driftCount)
 	os.Exit(1)
+}
+
+// cmdHistory shows stored check history and uptime summaries.
+func cmdHistory(args []string) {
+	serviceID := ""
+	historyPath := history.DefaultPath()
+	sinceStr := "7d"
+	last := 20
+	raw := false
+
+	for i := 0; i < len(args); i++ {
+		if !strings.HasPrefix(args[i], "--") {
+			serviceID = args[i]
+			continue
+		}
+		switch args[i] {
+		case "--since":
+			if i+1 >= len(args) {
+				fatal("--since requires a value (e.g. 24h, 7d, 30d)")
+			}
+			i++
+			sinceStr = args[i]
+		case "--last":
+			if i+1 >= len(args) {
+				fatal("--last requires a number")
+			}
+			i++
+			fmt.Sscanf(args[i], "%d", &last)
+		case "--raw":
+			raw = true
+		case "--history-file":
+			if i+1 >= len(args) {
+				fatal("--history-file requires a path")
+			}
+			i++
+			historyPath = args[i]
+		case "prune":
+			cmdHistoryPrune(args[i+1:], historyPath)
+			return
+		default:
+			fatalf("unknown flag: %s", args[i])
+		}
+	}
+
+	sinceD := parseDuration(sinceStr)
+	sinceTS := time.Now().Add(-sinceD).Unix()
+
+	hdb, err := history.Open(historyPath)
+	if err != nil {
+		fatalf("opening history: %v", err)
+	}
+	defer hdb.Close()
+
+	if serviceID == "" {
+		// Summary: all services with uptime % and incident count.
+		// First show any open incidents.
+		open, _ := hdb.QueryOpenIncidents()
+		if len(open) > 0 {
+			fmt.Printf("⚠️  Currently down (%d open incident(s)):\n", len(open))
+			for _, inc := range open {
+				dur := time.Since(inc.StartedAt).Round(time.Minute)
+				errStr := ""
+				if inc.FirstError != nil {
+					errStr = " — " + *inc.FirstError
+				}
+				fmt.Printf("  ❌ %-20s %s%s\n", inc.ServiceID, dur, errStr)
+			}
+			fmt.Println()
+		}
+
+		fmt.Printf("%-20s  %-12s  %-10s  %s\n", "Service", "Uptime ("+sinceStr+")", "Incidents", "Last incident")
+		fmt.Println(strings.Repeat("─", 65))
+		// Get distinct services from incidents.
+		services, _ := hdb.ServicesSeen(sinceTS)
+		for _, svc := range services {
+			pct, incidents, _ := hdb.UptimePct(svc, sinceTS)
+			lastInc := "—"
+			incs, _ := hdb.QueryIncidents(svc, sinceTS, 1)
+			if len(incs) > 0 {
+				inc := incs[0]
+				dur := ""
+				if inc.DurationSec != nil {
+					dur = fmt.Sprintf(" (%s)", (time.Duration(*inc.DurationSec) * time.Second).Round(time.Minute))
+				} else {
+					dur = " (ongoing)"
+				}
+				lastInc = inc.StartedAt.Format("Jan 02 15:04") + dur
+			}
+			fmt.Printf("%-20s  %-12s  %-10d  %s\n",
+				svc, fmt.Sprintf("%.1f%%", pct), incidents, lastInc)
+		}
+		return
+	}
+
+	// Per-service incident list.
+	if raw {
+		fmt.Printf("%s — raw checks (last %d, since %s)\n\n", serviceID, last, sinceStr)
+		checks, _ := hdb.QueryChecks(serviceID, sinceTS, last)
+		for _, c := range checks {
+			status := "✅ up  "
+			latStr := fmt.Sprintf("%dms", derefI64(c.LatencyMS))
+			if c.Status != "up" {
+				status = "❌ down"
+				latStr = "—"
+			}
+			errStr := ""
+			if c.ErrorStr != nil {
+				errStr = "  " + *c.ErrorStr
+			}
+			fmt.Printf("%s  %s  %-6s%s\n",
+				c.CheckedAt.Format("2006-01-02 15:04:05"), status, latStr, errStr)
+		}
+		return
+	}
+
+	// Incident list.
+	incidents, _ := hdb.QueryIncidents(serviceID, sinceTS, last)
+	pct, incCount, _ := hdb.UptimePct(serviceID, sinceTS)
+	fmt.Printf("%s — last %d incidents (since %s)\n\n", serviceID, last, sinceStr)
+	if len(incidents) == 0 {
+		fmt.Println("  No incidents in this window.")
+	}
+	for _, inc := range incidents {
+		marker := "❌"
+		durStr := "ongoing"
+		if inc.DurationSec != nil {
+			durStr = (time.Duration(*inc.DurationSec) * time.Second).Round(time.Second).String()
+		}
+		errStr := ""
+		if inc.FirstError != nil {
+			errStr = "  " + *inc.FirstError
+			if inc.LastError != nil && *inc.LastError != *inc.FirstError {
+				errStr += " → " + *inc.LastError
+			}
+		}
+		fmt.Printf("  %s %s  %-10s  %d checks%s\n",
+			marker, inc.StartedAt.Format("Jan 02 15:04"), durStr, inc.CheckCount, errStr)
+	}
+	fmt.Printf("\nUptime (%s): %.1f%%  |  %d incident(s)\n", sinceStr, pct, incCount)
+}
+
+func cmdHistoryPrune(args []string, historyPath string) {
+	keepStr := "90d"
+	if len(args) > 0 {
+		keepStr = args[0]
+	}
+	dur := parseDuration(keepStr)
+	keepSecs := int64(dur / time.Second)
+
+	hdb, err := history.Open(historyPath)
+	if err != nil {
+		fatalf("opening history: %v", err)
+	}
+	defer hdb.Close()
+	deleted, err := hdb.Prune(keepSecs)
+	if err != nil {
+		fatalf("pruning: %v", err)
+	}
+	fmt.Printf("Pruned %d check rows older than %s. Incidents retained.\n", deleted, keepStr)
+}
+
+func parseDuration(s string) time.Duration {
+	if strings.HasSuffix(s, "d") {
+		var days int
+		fmt.Sscanf(s, "%d", &days)
+		return time.Duration(days) * 24 * time.Hour
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		return 7 * 24 * time.Hour // default 7d
+	}
+	return d
+}
+
+func derefI64(p *int64) int64 {
+	if p == nil {
+		return 0
+	}
+	return *p
 }
 
 func printUsage() {

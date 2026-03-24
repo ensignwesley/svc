@@ -28,7 +28,8 @@ CREATE TABLE IF NOT EXISTS incidents (
     recovered_at  INTEGER,           -- NULL = still open (service still down)
     duration_sec  INTEGER,           -- NULL until recovered
     check_count   INTEGER NOT NULL DEFAULT 1,  -- failing checks in this incident
-    first_error   TEXT               -- error from the first failing check
+    first_error   TEXT,              -- error from the first failing check
+    last_error    TEXT               -- error from the most recent failing check
 );
 
 CREATE INDEX IF NOT EXISTS idx_checks_service ON checks(service_id, checked_at DESC);
