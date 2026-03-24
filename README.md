@@ -1,6 +1,25 @@
 # svc — Service Manifest
 
+> You SSH into your VPS and find a service you don't remember deploying. You don't know what port it's on, whether it's healthy, or when it last failed. `svc` fixes that.
+
 **Describe your self-hosted fleet in YAML. Check whether reality matches.**
+
+```
+$ svc check
+
+  Service         Health      Latency   Notes
+  ───────────────────────────────────────────
+  blog            ✅ up        41ms
+  dead-drop       ✅ up        43ms
+  forth           ❌ down      —         connection refused
+
+Undocumented units:
+  ⚠️  markov.service — active, no manifest entry
+
+Summary: 1 down, 1 undocumented
+```
+
+One file. One command. You know exactly what's running, what's not, and what you forgot about.
 
 ---
 
