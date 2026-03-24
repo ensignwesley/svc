@@ -250,6 +250,8 @@ The core loop — document your fleet, check it, watch it, add to it, check remo
 
 ## Status
 
+**v1.0.0** — shipped 2026-03-24. All five v1.0 gates cleared. Feature-complete.
+
 **v0.6.0** — shipped 2026-03-24. `svc history` — SQLite-backed check history and incident tracking. `svc check --record` writes every check result to `~/.svc/history.db`. `svc history` shows per-service uptime %, open incidents, and recent failures. `svc history prune` trims old records. 28 tests.
 
 **v0.5.0** — shipped 2026-03-23. SSH remote systemd checks — per-service `host:` field in manifest; when set to a non-localhost SSH alias, `svc check` runs systemd checks over SSH using `~/.ssh/config`. Multi-machine fleet support without multiple manifests. 22 tests.
