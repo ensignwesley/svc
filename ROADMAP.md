@@ -1,15 +1,15 @@
 # svc Roadmap
 
-**Current version:** v0.5.0  
-**Last updated:** 2026-03-23
+**Current version:** v1.0.0  
+**Last updated:** 2026-03-25
 
 ---
 
 ## Where we are
 
-Six commands. Pre-built binaries. Twenty-two tests. A working manifest for a 7-service fleet, polled continuously, with webhook alerting, single-command fleet scanner for onboarding, and SSH remote systemd checks for multi-machine fleets.
+Seven commands. Pre-built binaries. Twenty-eight tests. A working manifest for a 7-service fleet, polled continuously, with webhook alerting, single-command fleet scanner for onboarding, SSH remote systemd checks for multi-machine fleets, and SQLite-backed check history with per-service uptime tracking.
 
-The core loop is complete: document your fleet, check it, watch it, add to it. Local or remote — `svc check` now handles both, using `~/.ssh/config` for auth and routing through SSH only when `host:` is set to a non-localhost value.
+The core loop is complete: document your fleet, check it, watch it, add to it, check remote machines, and look up when something last broke. All five v1.0 gates are cleared. v1.0 is shipped.
 
 ---
 
@@ -55,33 +55,22 @@ SSH failures are warnings on that service, not failures of the whole check. HTTP
 
 ---
 
-## v0.6 — The Next Feature
+## v0.6 — Shipped ✅
 
 ### 1. SQLite history (`svc check --record`, `svc history`)
 
-**The problem:** `svc check` is a snapshot. It tells you what's true right now. It can't tell you: was this service down an hour ago? How often does it go unhealthy? What's the uptime over the last 30 days?
+**Shipped 2026-03-24.**
 
-**What it does:** `svc check --record` appends each run's results to `~/.local/share/svc/history.db`. `svc history <service>` shows the last N checks with timestamps, latencies, and uptime percentage.
+`svc check --record` appends each run's results to `~/.svc/history.db`. `svc history` shows per-service uptime %, open incidents, and recent failures. `svc history prune` trims old records. 28 tests.
 
 ```bash
 svc check --record
 svc history dead-drop --last 20
 svc history --all --since 7d
+svc history prune --older-than 30d
 ```
 
-**Output:**
-```
-dead-drop — last 20 checks
-  2026-03-22 08:00  ✅ up    43ms
-  2026-03-22 07:00  ✅ up    41ms
-  2026-03-21 22:00  ❌ down  —      connection refused
-  ...
-Uptime (7d): 99.2% (1 incident, 8 minutes)
-```
-
-**Why this matters:** The difference between a monitoring tool and a useful one is memory. Right now `svc watch` tells you when things break in real time. History tells you patterns — the service that goes down every Sunday morning, the one whose latency crept up over three weeks before it failed.
-
-**Scope:** SQLite, stdlib only. `--record` is opt-in; default behavior unchanged. No retention policy in v0.4 — files accumulate until you delete them. Retention is v0.5.
+The difference between a monitoring tool and a useful one is memory. `svc watch` tells you when things break in real time. `svc history` tells you patterns.
 
 ---
 
@@ -119,9 +108,9 @@ v1.0 is when a stranger with an established multi-machine homelab can:
 2. Scaffold a working manifest in under 5 minutes ✅ (done — v0.4.0, `svc add --scan`)
 3. Get full drift detection on all their machines, not just one ✅ (done — v0.5.0, SSH remote systemd checks)
 4. Know when something breaks before they notice it themselves ✅ (`svc watch` — done)
-5. Look up when something last broke and how long it was down (`svc history` — v0.6)
+5. Look up when something last broke and how long it was down ✅ (done — v0.6.0, `svc history`)
 
-**Items 1–4 are complete.** Item 5 (`svc history`) ships in v0.6. When that lands, v1.0 is done.
+**All five gates cleared. v1.0.0 shipped 2026-03-24.**
 
 What v1.0 does not require:
 - Web UI

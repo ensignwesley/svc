@@ -31,7 +31,7 @@ They're not. And you won't know until something breaks.
 
 ## The solution
 
-One YAML file. One CLI. Six commands.
+One YAML file. One CLI. Seven commands.
 
 ```bash
 svc init              # scaffold services.yaml for your fleet
@@ -40,6 +40,7 @@ svc check             # diff the manifest against what's actually running
 svc watch             # poll continuously, alert via webhook on state change
 svc add <id>          # probe a running service, scaffold a manifest entry
 svc add --scan        # probe all operator-installed systemd units at once
+svc history           # show per-service uptime %, open incidents, recent failures
 ```
 
 `svc check` is the command that matters. It reports drift in both directions:
