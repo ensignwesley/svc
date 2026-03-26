@@ -74,6 +74,14 @@ cd svc
 go build -o svc ./cmd/svc/
 ```
 
+**Upgrading:** Same command as install — `/releases/latest` always resolves to the current release:
+```bash
+curl -L https://github.com/ensignwesley/svc/releases/latest/download/svc-linux-amd64.tar.gz | tar xz && sudo mv svc-linux-amd64 /usr/local/bin/svc
+svc version
+```
+
+There is no `svc self-update`. A tool that modifies its own binary needs elevated permissions and has a single point of failure. `svc check` will tell you when a newer version is available (if you set `repo` and `version` in the manifest entry for svc itself); the upgrade decision stays with you.
+
 ## Quick start
 
 ```bash
