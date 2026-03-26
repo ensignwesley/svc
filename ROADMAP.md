@@ -1,7 +1,7 @@
 # svc Roadmap
 
-**Current version:** v1.0.0  
-**Last updated:** 2026-03-25
+**Current version:** v1.0.1  
+**Last updated:** 2026-03-26
 
 ---
 
@@ -9,143 +9,178 @@
 
 Seven commands. Pre-built binaries. Twenty-eight tests. A working manifest for a 7-service fleet, polled continuously, with webhook alerting, single-command fleet scanner for onboarding, SSH remote systemd checks for multi-machine fleets, and SQLite-backed check history with per-service uptime tracking.
 
-The core loop is complete: document your fleet, check it, watch it, add to it, check remote machines, and look up when something last broke. All five v1.0 gates are cleared. v1.0 is shipped.
+All five v1.0 gates cleared. The core loop is complete.
 
 ---
 
-## v0.4 — Shipped ✅
+## The post-v1.0 question
 
-### ~~1. `svc add --scan` (force multiplier)~~ — DONE
+Every real open-source tool has a moment where the author decides: living project or portfolio piece? Both are valid. This document is the answer: living project, with a focus on what makes svc genuinely more useful to sysadmins who aren't me.
 
-~~**The problem:** Running `svc add` once per service is fine for a new fleet. For someone with 12 services already running, it's 12 invocations plus manual YAML editing.~~
+The constraint that doesn't change: single binary, read-only default, no credentials in the manifest, CI-friendly exits. v1.1 features must be additive, not architectural changes.
 
-**Shipped.** `svc add --scan` scans all operator-installed units in `/etc/systemd/system/` and `~/.config/systemd/user/`, probes each one, skips already-documented services, and outputs scaffold YAML for new ones. Dry-run by default; `--write` to commit.
+---
 
+## v1.1 — Priority order
+
+### 1. `svc validate` — manifest linting, zero network calls
+
+**The problem:** `svc check` validates the manifest as a side effect of polling. In CI, you want to know if the manifest parses correctly and all required fields are present — without waiting for health check timeouts.
+
+**What it does:**
 ```bash
-svc add --scan          # scaffold unregistered units, print to stdout
-svc add --scan --write  # write directly to services.yaml
-svc add --scan --include-known  # re-scaffold already-documented services too
+svc validate                    # parse + validate services.yaml, no polling
+svc validate --file ops/svc.yaml
 ```
 
-19 tests passing.
+Exit 0 if valid. Exit 1 with specific errors if not:
+```
+Error: service "dead-drop" — one of port or health_url is required
+Error: service "blog" — repo is set without version (version drift check will be skipped)
+Warning: service "forth" — description is empty
+```
+
+**Why this is #1:** It closes the CI feedback loop. `svc check --no-systemd` works in CI today but fires network requests and takes up to `--timeout` seconds per service. A schema validation step that runs in milliseconds is the missing CI primitive. Every user who puts svc in a GitHub Actions workflow will want this.
+
+**Semver:** Minor (1.1.0). New command, additive.
 
 ---
 
-## v0.5 — Shipped ✅
+### 2. `svc report` — scheduled uptime digest
 
-### ~~2. SSH remote systemd checks~~ — DONE
+**The problem:** `svc watch` is reactive — it tells you when something breaks. There's no proactive summary: "how healthy was your fleet this week?"
 
-~~**The problem:** `svc status` and `svc check` HTTP polling work against any URL — remote services, other machines. But the systemd half only runs locally.~~
+**What it does:**
+```bash
+svc report                      # stdout: uptime table for past 7d
+svc report --since 30d          # longer window
+svc report --webhook https://...  # POST formatted JSON to webhook
+svc report --format markdown    # markdown table (for Slack, Notion, etc.)
+```
 
-**Shipped.** Per-service `host:` field in the manifest. When set to a non-localhost value, `svc check` SSHes in and runs the systemd checks remotely. Uses `~/.ssh/config` — no credentials in the manifest, ever.
+Example markdown output:
+```markdown
+## Fleet Report — Week of Mar 19–26
+
+| Service      | Uptime  | Incidents | Worst incident     |
+|-------------|---------|-----------|-------------------|
+| blog         | 100.0%  | 0         | —                 |
+| dead-drop    | 99.8%   | 1         | Mar 21 02:14 (8m) |
+| observatory  | 100.0%  | 0         | —                 |
+```
+
+**Why this is #2:** This closes the "scheduled alerting" gap that `svc watch` (reactive) doesn't fill. A weekly cron job running `svc report --webhook https://ntfy.sh/my-topic` becomes the Monday morning fleet status brief. High value, low complexity — it's a read from the history database that `svc check --record` already populates.
+
+**Dependency:** Requires `svc history` (already in v1.0) to have accumulated data.
+
+**Semver:** Minor (1.1.0). New command, additive.
+
+---
+
+### 3. Multi-file manifests (`!include` or directory scanning)
+
+**The problem:** At 10 services, one `services.yaml` is manageable. At 50, it becomes unwieldy. There's no way to split a manifest by tier (prod/staging), by team, or by machine — without maintaining entirely separate invocations.
+
+**What it does:** Two approaches (implement simpler one first):
+
+Option A — `!include` directive:
+```yaml
+manifest:
+  version: 1
+  include:
+    - services/web.yaml
+    - services/databases.yaml
+    - services/monitoring.yaml
+```
+
+Option B — directory scanning:
+```bash
+svc check --file services/    # merge all *.yaml in directory
+```
+
+Option B is simpler to implement and doesn't require YAML extension syntax. Implement B first.
+
+**Why this is #3:** This is the scaling feature. It doesn't matter for a 7-service fleet; it matters a lot for a 50-service fleet or a team where different people own different service groups. Without it, svc hits a ceiling at maybe 20-30 services before the manifest becomes a maintenance problem.
+
+**Scope constraint:** Merged manifests must not allow duplicate service IDs. Conflict = error, not silent override.
+
+**Semver:** Minor (1.1.0). Additive; existing single-file behavior unchanged.
+
+---
+
+### 4. History retention policy
+
+**The problem:** `svc check --record` appends every check result to SQLite. With a 5-minute poll interval and 10 services, that's ~2,880 rows per day, ~21,000 per week. After a year: ~1M rows, probably 30-50MB. Not catastrophic, but unbounded growth is a bad default.
+
+**What it does:**
+```bash
+svc history prune --keep 90d   # already exists (manual)
+```
+
+What's missing: automatic pruning on a configurable schedule. Proposal: add `history.retention` to `manifest.yaml`:
 
 ```yaml
-services:
-  pi-dashboard:
-    description: "Grafana on the Pi"
-    host: homelab-pi           # resolved via ~/.ssh/config
-    port: 3000
-    health_url: "http://homelab-pi:3000/health"
-    systemd_unit: "grafana.service"
+manifest:
+  version: 1
+  history:
+    retention: 90d    # auto-prune checks older than this
+    # incidents are never auto-pruned
 ```
 
-SSH failures are warnings on that service, not failures of the whole check. HTTP health check still runs from the local machine regardless.
+`svc check --record` runs the prune as a background step after recording. Zero extra commands, zero extra cron jobs.
 
-22 tests passing.
+**Why this is #4:** Not urgent for any individual user today. Becomes relevant in months 3-6 when they notice their history database is 50MB. Better to make the default sane now, while it's cheap, than to fix it reactively when users file issues.
+
+**Semver:** Minor (1.1.0). Schema addition (backward-compatible; no retention field = current behavior, no auto-prune).
 
 ---
 
-## v0.6 — Shipped ✅
+### 5. `svc check --diff` — compare two manifests
 
-### 1. SQLite history (`svc check --record`, `svc history`)
+**The problem:** When migrating a fleet (new machine, new VPS, infrastructure change), you want to know what changed between two manifests. Currently the only way is manual comparison.
 
-**Shipped 2026-03-24.**
-
-`svc check --record` appends each run's results to `~/.svc/history.db`. `svc history` shows per-service uptime %, open incidents, and recent failures. `svc history prune` trims old records. 28 tests.
-
+**What it does:**
 ```bash
-svc check --record
-svc history dead-drop --last 20
-svc history --all --since 7d
-svc history prune --older-than 30d
+svc check --diff services-old.yaml services-new.yaml
 ```
 
-The difference between a monitoring tool and a useful one is memory. `svc watch` tells you when things break in real time. `svc history` tells you patterns.
+Output: services added, removed, or changed between the two manifests. No network calls — pure schema comparison.
 
----
-
-### 2. SSH remote systemd checks
-
-**The problem:** `svc status` and `svc check` HTTP polling work against any URL — remote services, other machines. But the systemd half (undocumented unit scan, `systemctl is-active`) only runs locally. A homelab operator with two machines can only get full drift detection on one of them.
-
-**What it does:** Per-service `host:` field in the manifest. When set to a non-localhost value, `svc check` SSHes in and runs the systemd checks remotely. Uses `~/.ssh/config` only — no credentials in the manifest, ever.
-
-```yaml
-services:
-  pi-dashboard:
-    description: "Grafana on the Pi"
-    host: homelab-pi           # resolved via ~/.ssh/config
-    port: 3000
-    health_url: "http://homelab-pi:3000/health"
-    systemd_unit: "grafana.service"
+```
+Added:    preflight (port 3006)
+Removed:  markov
+Changed:  dead-drop — port 3001 → 3001, health_url added
 ```
 
----
+**Why this is #5:** Lower priority than 1-4 because it solves an infrequent workflow (migration) rather than a daily-use gap. Useful, not urgent. Included here because it's low complexity (diff two maps) and high signal-to-noise in the output.
 
-## The force multiplier answer
-
-**`svc add --scan` — shipped in v0.4.0.**
-
-The onboarding moment is the highest-leverage moment in the adoption lifecycle. Make it fast and the rest follows. Make it slow and people evaluate, nod, and go back to their notes.doc.
+**Semver:** Minor (1.1.0). New flag, additive.
 
 ---
 
-## v1.0 — The line
+## What v1.1 is NOT
 
-v1.0 is when a stranger with an established multi-machine homelab can:
-
-1. Install with one curl command ✅ (done — v0.3.1)
-2. Scaffold a working manifest in under 5 minutes ✅ (done — v0.4.0, `svc add --scan`)
-3. Get full drift detection on all their machines, not just one ✅ (done — v0.5.0, SSH remote systemd checks)
-4. Know when something breaks before they notice it themselves ✅ (`svc watch` — done)
-5. Look up when something last broke and how long it was down ✅ (done — v0.6.0, `svc history`)
-
-**All five gates cleared. v1.0.0 shipped 2026-03-24.**
-
-What v1.0 does not require:
-- Web UI
-- Package manager distribution (Homebrew, apt)
-- Docker support
-- Windows support
-- Slack/Teams/PagerDuty integrations (webhook covers this)
-- A hosted service
-
-Those are improvements. They're not the line between "useful tool" and "personal script."
+| Feature | Why not |
+|---------|---------|
+| Web UI / dashboard | Scope creep; Observatory already exists for dashboards |
+| Email delivery | Credentials + external deps; webhook receiver handles this |
+| Docker/container support | Different problem; Compose handles it |
+| Windows support | Low demand in self-hosted community; breaks single-binary simplicity |
+| Built-in scheduling | That's cron's job; svc is a CLI, not a daemon framework |
+| Config file for svc itself | `--file` flag is sufficient; avoid hidden state |
 
 ---
 
-## Beyond v1.0
+## Timeline
 
-Not committing to specifics, but the natural extensions:
-
-- **Retention policy** — keep last N days of history, auto-prune
-- **`svc report`** — weekly uptime summary, markdown output, pipe to email
-- **Version drift alerts** — integrate version checking into `svc watch`
-- **`svc diff`** — compare two manifests (useful for fleet migrations)
-- **Non-systemd process detection** — macOS launchd, OpenRC, s6
-
-These are v1.1+ territory. v1.0 first.
+No fixed dates. Features ship when they ship. The order above is the priority order — `svc validate` is the most impactful and the simplest. That ships first.
 
 ---
 
-## What would make someone choose svc over writing systemd unit files by hand?
+## How to contribute
 
-This is the right question and the honest answer is: `svc` doesn't replace systemd unit files. It documents what you have and tells you when it drifts. The value proposition is not "easier deployment" — it's "never be surprised by your own infrastructure."
-
-Someone chooses `svc` when they've had the experience of SSHing into their VPS and finding a service they don't remember deploying, or finding that something they thought was running isn't, or spending 20 minutes remembering whether they updated the nginx config when they moved a service to a new port.
-
-The question isn't "does svc compete with systemd?" It's "does svc make my fleet legible to me?" For anyone past 4-5 services, the answer is yes — if the onboarding is fast enough. That's why `svc add --scan` is the force multiplier.
+Issues are open. PRs welcome for anything in the roadmap. The design constraint (single binary, read-only default, no credentials in manifest) is non-negotiable; everything else is a conversation.
 
 ---
 
-*This roadmap is a working document. Features move; scope is honest; v1.0 is a real target, not a moving goalpost.*
+*This roadmap is a working document. It reflects current thinking, not commitments. The only commitment is that v1.x releases are backward-compatible with v1.0 manifests.*
