@@ -3,6 +3,7 @@ package checker
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
@@ -21,6 +22,9 @@ type HealthResult struct {
 func CheckHealth(id, url string, timeoutSec int) HealthResult {
 	client := &http.Client{
 		Timeout: time.Duration(timeoutSec) * time.Second,
+		// Disable keep-alives so each check opens a fresh connection.
+		// Avoids false "up" results from reused connections to dead services.
+		Transport: &http.Transport{DisableKeepAlives: true},
 	}
 
 	start := time.Now()
@@ -35,7 +39,7 @@ func CheckHealth(id, url string, timeoutSec int) HealthResult {
 
 	if err != nil {
 		result.Up = false
-		result.Err = summariseError(err)
+		result.Err = summariseError(err, timeoutSec)
 		return result
 	}
 	defer resp.Body.Close()
@@ -69,33 +73,22 @@ func CheckAllHealth(targets map[string]string, timeoutSec int) []HealthResult {
 	return results
 }
 
-// summariseError converts a net/http error into an operator-readable message.
-func summariseError(err error) string {
+// summariseError converts a net/http error into an actionable operator message.
+// Error messages should tell the operator what happened AND what to do about it.
+func summariseError(err error, timeoutSec int) string {
 	msg := err.Error()
-	// connection refused
-	if contains(msg, "connection refused") {
+	switch {
+	case strings.Contains(msg, "connection refused"):
 		return "connection refused"
+	case strings.Contains(msg, "timeout") || strings.Contains(msg, "deadline exceeded"):
+		return fmt.Sprintf("timeout after %ds (--timeout to increase)", timeoutSec)
+	case strings.Contains(msg, "no such host"):
+		return "DNS lookup failed — check health_url hostname"
+	case strings.Contains(msg, "dial tcp"):
+		return "host unreachable"
+	case strings.Contains(msg, "certificate"):
+		return "TLS certificate error (--no-verify to skip)"
+	default:
+		return msg
 	}
-	// timeout
-	if contains(msg, "timeout") || contains(msg, "deadline exceeded") {
-		return "timeout"
-	}
-	// DNS
-	if contains(msg, "no such host") || contains(msg, "dial tcp") {
-		return "DNS/connection error"
-	}
-	return msg
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsStr(s, substr))
-}
-
-func containsStr(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }

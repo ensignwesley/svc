@@ -270,7 +270,9 @@ The core loop — document your fleet, check it, watch it, add to it, check remo
 
 ## Status
 
-**v1.0.0** — shipped 2026-03-24. All five v1.0 gates cleared. Feature-complete.
+**v1.0.1** — shipped 2026-03-26. Patch: actionable error messages (timeout shows duration + flag hint, DNS failure names the fix, TLS errors identified). Dropped hand-rolled contains() for strings.Contains(). DisableKeepAlives on health check transport.
+
+**v1.0.0** — shipped 2026-03-25. All five v1.0 gates cleared. Feature-complete.
 
 **v0.6.0** — shipped 2026-03-24. `svc history` — SQLite-backed check history and incident tracking. `svc check --record` writes every check result to `~/.svc/history.db`. `svc history` shows per-service uptime %, open incidents, and recent failures. `svc history prune` trims old records. 28 tests.
 

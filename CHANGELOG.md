@@ -4,6 +4,24 @@ All notable changes to svc. Follows [Keep a Changelog](https://keepachangelog.co
 
 ---
 
+## [1.0.1] — 2026-03-26
+
+### Fixed
+- Error messages now contain actionable information:
+  - Timeout: `timeout after Ns (--timeout to increase)` — names the value, names the flag
+  - DNS failure: `DNS lookup failed — check health_url hostname` — names the fix
+  - TLS errors: identified separately from generic connection errors
+  - Host unreachable: `host unreachable` (was conflated with DNS errors)
+- Replaced hand-rolled `contains()` helper with `strings.Contains()` from stdlib
+- Added `DisableKeepAlives: true` to health check HTTP transport — prevents false "up" results from reused connections to services that have stopped accepting new connections
+
+### Analysis
+The reported issue ("svc check hangs on unreachable host") was not reproduced — `http.Client.Timeout` correctly cancels after `--timeout` seconds on all tested failure modes. However, the timeout error message `"timeout"` gave no actionable information. A v1.0 tool's error messages should contain their own fix. Patch release to address this.
+
+**Semver reasoning:** Patch (1.0.1). Error message text is an implementation detail, not a public API. No behavior changes, no schema changes, no exit code changes. The `--timeout` flag is unchanged and newly mentioned in the timeout error message.
+
+---
+
 ## [1.0.0] — 2026-03-25
 
 All five v1.0 gates cleared. Feature-complete.
