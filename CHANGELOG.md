@@ -19,7 +19,7 @@ All notable changes to svc. Follows [Keep a Changelog](https://keepachangelog.co
 - `ValidationResult` type with `Valid()`, `Errors []string`, `Warnings []string`
 
 ### Tests
-- 8 new manifest tests (13 total): `TestValidateValid`, `TestValidateErrorMissingVersion`, `TestValidateErrorMissingPortAndURL`, `TestValidateWarningRepoWithoutVersion`, `TestValidateWarningEmptyDescription`, `TestValidateMultipleErrors`, `TestParseManifest`, `TestParseManifestInvalidYAML`
+- 8 new manifest tests (13 manifest tests, 35 total): `TestValidateValid`, `TestValidateErrorMissingVersion`, `TestValidateErrorMissingPortAndURL`, `TestValidateWarningRepoWithoutVersion`, `TestValidateWarningEmptyDescription`, `TestValidateMultipleErrors`, `TestParseManifest`, `TestParseManifestInvalidYAML`
 
 ### Changed
 - Usage string updated: eight commands listed, `validate` included with flags documentation

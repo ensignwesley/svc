@@ -7,7 +7,7 @@
 
 ## Where we are
 
-Eight commands. Pre-built binaries. Thirty-six tests. A working manifest for a 7-service fleet, polled continuously, with webhook alerting, single-command fleet scanner for onboarding, SSH remote systemd checks for multi-machine fleets, SQLite-backed check history with per-service uptime tracking, and CI-safe manifest linting.
+Eight commands. Pre-built binaries. Thirty-five tests. A working manifest for a 7-service fleet, polled continuously, with webhook alerting, single-command fleet scanner for onboarding, SSH remote systemd checks for multi-machine fleets, SQLite-backed check history with per-service uptime tracking, and CI-safe manifest linting.
 
 All five v1.0 gates cleared. The core loop is complete.
 
