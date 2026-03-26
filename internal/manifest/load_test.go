@@ -107,6 +107,148 @@ func TestResolveHealthURL(t *testing.T) {
 	}
 }
 
+func TestValidateValid(t *testing.T) {
+	m := &manifest.Manifest{
+		Meta: manifest.Meta{Version: 1, Host: "localhost"},
+		Services: map[string]manifest.Service{
+			"svc": {Description: "test service", Port: 8080},
+		},
+	}
+	result := manifest.Validate(m)
+	if !result.Valid() {
+		t.Fatalf("expected valid, got errors: %v", result.Errors)
+	}
+	if len(result.Warnings) != 0 {
+		t.Errorf("expected no warnings, got: %v", result.Warnings)
+	}
+}
+
+func TestValidateErrorMissingVersion(t *testing.T) {
+	m := &manifest.Manifest{
+		Meta: manifest.Meta{Host: "localhost"},
+		Services: map[string]manifest.Service{
+			"svc": {Port: 8080},
+		},
+	}
+	result := manifest.Validate(m)
+	if result.Valid() {
+		t.Fatal("expected invalid for missing version")
+	}
+	if !strings.Contains(result.Errors[0], "version") {
+		t.Errorf("expected version error, got: %v", result.Errors[0])
+	}
+}
+
+func TestValidateErrorMissingPortAndURL(t *testing.T) {
+	m := &manifest.Manifest{
+		Meta: manifest.Meta{Version: 1},
+		Services: map[string]manifest.Service{
+			"svc": {Description: "no port"},
+		},
+	}
+	result := manifest.Validate(m)
+	if result.Valid() {
+		t.Fatal("expected invalid for missing port and health_url")
+	}
+	if !strings.Contains(result.Errors[0], "port") {
+		t.Errorf("expected port error, got: %v", result.Errors[0])
+	}
+}
+
+func TestValidateWarningRepoWithoutVersion(t *testing.T) {
+	m := &manifest.Manifest{
+		Meta: manifest.Meta{Version: 1},
+		Services: map[string]manifest.Service{
+			"svc": {Description: "test", Port: 8080, Repo: "owner/repo"},
+		},
+	}
+	result := manifest.Validate(m)
+	if !result.Valid() {
+		t.Fatalf("expected valid (warnings not errors), got: %v", result.Errors)
+	}
+	if len(result.Warnings) == 0 {
+		t.Fatal("expected warning for repo without version")
+	}
+	found := false
+	for _, w := range result.Warnings {
+		if strings.Contains(w, "version") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected version warning, got: %v", result.Warnings)
+	}
+}
+
+func TestValidateWarningEmptyDescription(t *testing.T) {
+	m := &manifest.Manifest{
+		Meta: manifest.Meta{Version: 1},
+		Services: map[string]manifest.Service{
+			"svc": {Port: 8080},
+		},
+	}
+	result := manifest.Validate(m)
+	if !result.Valid() {
+		t.Fatalf("expected valid, got: %v", result.Errors)
+	}
+	found := false
+	for _, w := range result.Warnings {
+		if strings.Contains(w, "description") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected description warning, got: %v", result.Warnings)
+	}
+}
+
+func TestValidateMultipleErrors(t *testing.T) {
+	m := &manifest.Manifest{
+		Meta: manifest.Meta{Version: 1},
+		Services: map[string]manifest.Service{
+			"alpha": {Description: "no port or url"},
+			"beta":  {Description: "also no port or url"},
+		},
+	}
+	result := manifest.Validate(m)
+	if result.Valid() {
+		t.Fatal("expected invalid")
+	}
+	if len(result.Errors) != 2 {
+		t.Errorf("expected 2 errors, got %d: %v", len(result.Errors), result.Errors)
+	}
+}
+
+func TestParseManifest(t *testing.T) {
+	yaml := `
+manifest:
+  version: 1
+  host: testhost
+services:
+  blog:
+    description: "Test blog"
+    health_url: "https://example.com/"
+`
+	m, err := manifest.ParseManifest([]byte(yaml))
+	if err != nil {
+		t.Fatalf("ParseManifest() error: %v", err)
+	}
+	if m.Meta.Host != "testhost" {
+		t.Errorf("expected host testhost, got %q", m.Meta.Host)
+	}
+	if len(m.Services) != 1 {
+		t.Errorf("expected 1 service, got %d", len(m.Services))
+	}
+}
+
+func TestParseManifestInvalidYAML(t *testing.T) {
+	// Indentation error that triggers yaml parse failure
+	_, err := manifest.ParseManifest([]byte("manifest:\n  version: 1\n services:\n  foo: bar"))
+	if err == nil {
+		t.Fatal("expected error for invalid YAML")
+	}
+}
+
 func writeTemp(t *testing.T, content string) string {
 	t.Helper()
 	f := filepath.Join(t.TempDir(), "services.yaml")

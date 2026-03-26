@@ -4,6 +4,32 @@ All notable changes to svc. Follows [Keep a Changelog](https://keepachangelog.co
 
 ---
 
+## [1.1.0] — 2026-03-26
+
+### Added
+- `svc validate` — lint `services.yaml` with zero network calls, CI-safe
+  - Parses YAML and validates semantics without polling any health endpoints
+  - Reports errors (blocking): missing `port`/`health_url`, unsupported manifest version
+  - Reports warnings (advisory): `repo` set without `version`, empty `description`
+  - Exit 0 if valid (warnings do not block); exit 1 on errors
+  - Supports `--file` / `-f` flag for alternate manifest paths
+  - Runs in milliseconds — safe to use in GitHub Actions or pre-commit hooks
+- `ParseManifest()` exported from `internal/manifest` — parse YAML without validation
+- `Validate()` exported from `internal/manifest` — semantic validation with full error/warning detail
+- `ValidationResult` type with `Valid()`, `Errors []string`, `Warnings []string`
+
+### Tests
+- 8 new manifest tests (13 total): `TestValidateValid`, `TestValidateErrorMissingVersion`, `TestValidateErrorMissingPortAndURL`, `TestValidateWarningRepoWithoutVersion`, `TestValidateWarningEmptyDescription`, `TestValidateMultipleErrors`, `TestParseManifest`, `TestParseManifestInvalidYAML`
+
+### Changed
+- Usage string updated: eight commands listed, `validate` included with flags documentation
+- README: command count "Seven commands" → "Eight commands", `svc validate` added to command table and feature checklist
+- ROADMAP: `svc validate` marked as shipped; current version and test count updated
+
+**Semver reasoning:** Minor (1.1.0). New command and exported API, fully additive. No existing behavior changed, no schema changes, no exit code changes for existing commands.
+
+---
+
 ## [1.0.1] — 2026-03-26
 
 ### Fixed

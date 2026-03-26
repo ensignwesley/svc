@@ -3,9 +3,22 @@ package manifest
 import (
 	"fmt"
 	"os"
+	"sort"
 
 	"gopkg.in/yaml.v3"
 )
+
+// ValidationResult holds errors and warnings from manifest validation.
+// Errors block valid usage; warnings are advisory.
+type ValidationResult struct {
+	Errors   []string
+	Warnings []string
+}
+
+// Valid returns true if there are no errors (warnings do not block validity).
+func (v *ValidationResult) Valid() bool {
+	return len(v.Errors) == 0
+}
 
 // Load reads and validates a manifest file from the given path.
 func Load(path string) (*Manifest, error) {
@@ -22,8 +35,9 @@ func Load(path string) (*Manifest, error) {
 		return nil, fmt.Errorf("parsing manifest: %w", err)
 	}
 
-	if err := validate(&m); err != nil {
-		return nil, err
+	vr := Validate(&m)
+	if !vr.Valid() {
+		return nil, fmt.Errorf("%s", vr.Errors[0])
 	}
 
 	// Apply defaults.
@@ -34,27 +48,55 @@ func Load(path string) (*Manifest, error) {
 	return &m, nil
 }
 
-// validate checks manifest semantics after YAML parsing.
-func validate(m *Manifest) error {
-	if m.Meta.Version != 1 {
-		if m.Meta.Version == 0 {
-			return fmt.Errorf("manifest.version is required (set to 1)")
-		}
-		return fmt.Errorf("unsupported manifest version %d (expected 1)", m.Meta.Version)
+// ParseManifest parses raw YAML bytes into a Manifest without validating.
+// Use Validate() on the result to check semantics.
+func ParseManifest(data []byte) (*Manifest, error) {
+	var m Manifest
+	if err := yaml.Unmarshal(data, &m); err != nil {
+		return nil, fmt.Errorf("parsing manifest: %w", err)
+	}
+	return &m, nil
+}
+
+// Validate checks manifest semantics and returns errors and warnings.
+// It does not make any network calls. Safe to call from CI.
+func Validate(m *Manifest) *ValidationResult {
+	result := &ValidationResult{}
+
+	// Version check.
+	if m.Meta.Version == 0 {
+		result.Errors = append(result.Errors, "manifest.version is required (set to 1)")
+	} else if m.Meta.Version != 1 {
+		result.Errors = append(result.Errors, fmt.Sprintf("unsupported manifest version %d (expected 1)", m.Meta.Version))
 	}
 
-	for id, svc := range m.Services {
+	// Per-service checks. Sort IDs for deterministic output.
+	ids := make([]string, 0, len(m.Services))
+	for id := range m.Services {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+
+	for _, id := range ids {
+		svc := m.Services[id]
 		if svc.Port == 0 && svc.HealthURL == "" {
-			return fmt.Errorf("service %q: one of 'port' or 'health_url' is required", id)
+			result.Errors = append(result.Errors,
+				fmt.Sprintf("service %q: one of 'port' or 'health_url' is required", id))
 		}
 		if svc.Repo != "" && svc.Version == "" {
-			// Warn-only: version check will be skipped.
-			// We don't error here — caller can warn separately.
+			result.Warnings = append(result.Warnings,
+				fmt.Sprintf("service %q: repo is set without version (version drift check will be skipped)", id))
+		}
+		if svc.Description == "" {
+			result.Warnings = append(result.Warnings,
+				fmt.Sprintf("service %q: description is empty", id))
 		}
 	}
 
-	return nil
+	return result
 }
+
+
 
 // ResolveHealthURL returns the effective health URL for a service.
 // Explicit health_url takes precedence; otherwise derives from host+port.

@@ -31,12 +31,13 @@ They're not. And you won't know until something breaks.
 
 ## The solution
 
-One YAML file. One CLI. Seven commands.
+One YAML file. One CLI. Eight commands.
 
 ```bash
 svc init              # scaffold services.yaml for your fleet
 svc status            # poll every service, show live health table
 svc check             # diff the manifest against what's actually running
+svc validate          # lint the manifest — no network calls, CI-safe
 svc watch             # poll continuously, alert via webhook on state change
 svc add <id>          # probe a running service, scaffold a manifest entry
 svc add --scan        # probe all operator-installed systemd units at once
@@ -270,6 +271,8 @@ The core loop — document your fleet, check it, watch it, add to it, check remo
 
 ## Status
 
+**v1.1.0** — shipped 2026-03-26. `svc validate` — manifest linting with zero network calls. Parses and validates `services.yaml`, reports errors (missing port/health_url, bad version) and warnings (repo without version, empty description). Exit 0 if valid, exit 1 on errors. CI-safe: runs in milliseconds, no timeouts. 13 manifest tests.
+
 **v1.0.1** — shipped 2026-03-26. Patch: actionable error messages (timeout shows duration + flag hint, DNS failure names the fix, TLS errors identified). Dropped hand-rolled contains() for strings.Contains(). DisableKeepAlives on health check transport.
 
 **v1.0.0** — shipped 2026-03-25. All five v1.0 gates cleared. Feature-complete.
@@ -291,6 +294,7 @@ The core loop — document your fleet, check it, watch it, add to it, check remo
 - [x] `svc init` — scaffold services.yaml
 - [x] `svc status` — concurrent health polling, table output, `--json`
 - [x] `svc check` — drift detection: HTTP + systemd + version
+- [x] `svc validate` — manifest linting, zero network calls, CI-safe
 - [x] `svc watch` — continuous polling, state machine, webhook delivery, SIGTERM
 - [x] `svc add` — scaffold a manifest entry from a running service
 - [x] `svc add --scan` — probe all operator units at once, skip already-documented

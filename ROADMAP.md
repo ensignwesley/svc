@@ -1,13 +1,13 @@
 # svc Roadmap
 
-**Current version:** v1.0.1  
+**Current version:** v1.1.0  
 **Last updated:** 2026-03-26
 
 ---
 
 ## Where we are
 
-Seven commands. Pre-built binaries. Twenty-eight tests. A working manifest for a 7-service fleet, polled continuously, with webhook alerting, single-command fleet scanner for onboarding, SSH remote systemd checks for multi-machine fleets, and SQLite-backed check history with per-service uptime tracking.
+Eight commands. Pre-built binaries. Thirty-six tests. A working manifest for a 7-service fleet, polled continuously, with webhook alerting, single-command fleet scanner for onboarding, SSH remote systemd checks for multi-machine fleets, SQLite-backed check history with per-service uptime tracking, and CI-safe manifest linting.
 
 All five v1.0 gates cleared. The core loop is complete.
 
@@ -21,9 +21,9 @@ The constraint that doesn't change: single binary, read-only default, no credent
 
 ---
 
-## v1.1 — Priority order
+## v1.1 — Status
 
-### 1. `svc validate` — manifest linting, zero network calls
+### 1. `svc validate` — manifest linting, zero network calls ✅ SHIPPED (v1.1.0)
 
 **The problem:** `svc check` validates the manifest as a side effect of polling. In CI, you want to know if the manifest parses correctly and all required fields are present — without waiting for health check timeouts.
 
@@ -36,11 +36,10 @@ svc validate --file ops/svc.yaml
 Exit 0 if valid. Exit 1 with specific errors if not:
 ```
 Error: service "dead-drop" — one of port or health_url is required
-Error: service "blog" — repo is set without version (version drift check will be skipped)
+Warning: service "blog" — repo is set without version (version drift check will be skipped)
 Warning: service "forth" — description is empty
+✅ Valid (7 service(s), 2 warning(s))
 ```
-
-**Why this is #1:** It closes the CI feedback loop. `svc check --no-systemd` works in CI today but fires network requests and takes up to `--timeout` seconds per service. A schema validation step that runs in milliseconds is the missing CI primitive. Every user who puts svc in a GitHub Actions workflow will want this.
 
 **Semver:** Minor (1.1.0). New command, additive.
 
