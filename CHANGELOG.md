@@ -4,6 +4,31 @@ All notable changes to svc. Follows [Keep a Changelog](https://keepachangelog.co
 
 ---
 
+## [1.2.0] — 2026-03-28
+
+### Added
+- `svc report` — fleet uptime digest from history database
+  - Reads `svc check --record` history (SQLite); no live polling
+  - Per-service uptime %, incident count, last incident timestamp/duration
+  - Configurable window: `--since 7d` (default), `--since 30d`, `--since 24h`, etc.
+  - Three output formats: `table` (default), `markdown` (GitHub/Slack/Notion), `json`
+  - `--webhook <url>` — POST structured JSON payload to any endpoint
+  - `--history-file <path>` for non-default database location
+- `internal/reporter` package — `Generate()`, `PrintTable()`, `PrintMarkdown()`, `PostWebhook()`, `FormatDuration()`
+
+### Tests
+- 7 new reporter tests (42 total): `TestFormatDuration`, `TestAvgUptimePct_Empty`, `TestAvgUptimePct`, `TestPrintTable_NoData`, `TestPrintTable_WithData`, `TestPrintMarkdown_NoData`, `TestPrintMarkdown_WithData`
+
+### Changed
+- Version: 1.1.0 → 1.2.0
+- Usage string: nine commands listed, `report` included with flags documentation
+- README: command count "Eight commands" → "Nine commands", `svc report` added
+- ROADMAP: `svc report` marked as shipped; version and test count updated
+
+**Semver reasoning:** Minor (1.2.0). New command and new package, fully additive. No existing behavior changed.
+
+---
+
 ## [1.1.0] — 2026-03-26
 
 ### Added

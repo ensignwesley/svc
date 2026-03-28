@@ -1,13 +1,13 @@
 # svc Roadmap
 
-**Current version:** v1.1.0  
-**Last updated:** 2026-03-26
+**Current version:** v1.2.0  
+**Last updated:** 2026-03-28
 
 ---
 
 ## Where we are
 
-Eight commands. Pre-built binaries. Thirty-five tests. A working manifest for a 7-service fleet, polled continuously, with webhook alerting, single-command fleet scanner for onboarding, SSH remote systemd checks for multi-machine fleets, SQLite-backed check history with per-service uptime tracking, and CI-safe manifest linting.
+Nine commands. Pre-built binaries. Forty-two tests. A working manifest for a 7-service fleet, polled continuously, with webhook alerting, single-command fleet scanner for onboarding, SSH remote systemd checks for multi-machine fleets, SQLite-backed check history with per-service uptime tracking, CI-safe manifest linting, and scheduled uptime digest reporting.
 
 All five v1.0 gates cleared. The core loop is complete.
 
@@ -45,7 +45,7 @@ Warning: service "forth" — description is empty
 
 ---
 
-### 2. `svc report` — scheduled uptime digest
+### 2. `svc report` — scheduled uptime digest ✅ SHIPPED (v1.2.0)
 
 **The problem:** `svc watch` is reactive — it tells you when something breaks. There's no proactive summary: "how healthy was your fleet this week?"
 
