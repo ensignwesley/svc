@@ -18,6 +18,19 @@ check-version:
 	fi; \
 	echo "✅ Version consistent: $$VERSION_GO"
 
+# Warn when non-test Go source exceeds the cognitive-overhead ceiling.
+# This is a warning, not a hard failure — the ceiling is a heuristic, not a law.
+loc-check:
+	@LINES=$$(find . -name "*.go" -not -path "*/vendor/*" -not -name "*_test.go" | xargs wc -l | tail -1 | awk '{print $$1}'); \
+	echo "Non-test Go: $$LINES lines"; \
+	if [ "$$LINES" -gt 3500 ]; then \
+		echo "⚠️  LOC ceiling exceeded ($$LINES > 3500). Consider: splitting main.go, cutting features, or raising the ceiling consciously."; \
+	elif [ "$$LINES" -gt 3000 ]; then \
+		echo "⚠️  Approaching LOC ceiling ($$LINES / 3500). Review before adding features."; \
+	else \
+		echo "✅ Within ceiling."; \
+	fi
+
 install-hooks:
 	cp .git/hooks/pre-commit .git/hooks/pre-commit
 	chmod +x .git/hooks/pre-commit
