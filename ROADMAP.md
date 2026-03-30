@@ -1,13 +1,13 @@
 # svc Roadmap
 
-**Current version:** v1.2.0  
-**Last updated:** 2026-03-28
+**Current version:** v1.3.0  
+**Last updated:** 2026-03-30
 
 ---
 
 ## Where we are
 
-Nine commands. Pre-built binaries. Forty-two tests. A working manifest for a 7-service fleet, polled continuously, with webhook alerting, single-command fleet scanner for onboarding, SSH remote systemd checks for multi-machine fleets, SQLite-backed check history with per-service uptime tracking, CI-safe manifest linting, and scheduled uptime digest reporting.
+Ten commands. Pre-built binaries. Fifty-three tests. A working manifest for a 7-service fleet, polled continuously, with webhook alerting, single-command fleet scanner for onboarding, SSH remote systemd checks for multi-machine fleets, SQLite-backed check history with per-service uptime tracking, CI-safe manifest linting, scheduled uptime digest reporting, and schema diff between two manifest files.
 
 All five v1.0 gates cleared. The core loop is complete.
 
@@ -134,26 +134,28 @@ manifest:
 
 ---
 
-### 5. `svc check --diff` — compare two manifests
+### 5. `svc diff` — compare two manifests ✅ SHIPPED (v1.3.0)
 
 **The problem:** When migrating a fleet (new machine, new VPS, infrastructure change), you want to know what changed between two manifests. Currently the only way is manual comparison.
 
 **What it does:**
 ```bash
-svc check --diff services-old.yaml services-new.yaml
+svc diff services-old.yaml services-new.yaml
 ```
 
 Output: services added, removed, or changed between the two manifests. No network calls — pure schema comparison.
 
 ```
-Added:    preflight (port 3006)
-Removed:  markov
-Changed:  dead-drop — port 3001 → 3001, health_url added
+Added:    gamma
+Changed:  alpha — health_url added (https://example.com/alpha/health)
+Changed:  beta — version 1.0.0 → 1.1.0
 ```
 
-**Why this is #5:** Lower priority than 1-4 because it solves an infrequent workflow (migration) rather than a daily-use gap. Useful, not urgent. Included here because it's low complexity (diff two maps) and high signal-to-noise in the output.
+Exit 0 if identical. Exit 1 if differences found. `--quiet` for exit-code-only use in CI.
 
-**Semver:** Minor (1.1.0). New flag, additive.
+**Why this is #5:** Lower priority than 1-4 because it solves an infrequent workflow (migration) rather than a daily-use gap. Useful, not urgent. 11 tests.
+
+**Semver:** Minor (1.3.0). New command, additive.
 
 ---
 

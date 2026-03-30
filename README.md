@@ -31,13 +31,14 @@ They're not. And you won't know until something breaks.
 
 ## The solution
 
-One YAML file. One CLI. Nine commands.
+One YAML file. One CLI. Ten commands.
 
 ```bash
 svc init              # scaffold services.yaml for your fleet
 svc status            # poll every service, show live health table
 svc check             # diff the manifest against what's actually running
 svc validate          # lint the manifest — no network calls, CI-safe
+svc diff <a> <b>      # compare two manifest files — schema diff, no network calls
 svc watch             # poll continuously, alert via webhook on state change
 svc add <id>          # probe a running service, scaffold a manifest entry
 svc add --scan        # probe all operator-installed systemd units at once
@@ -289,6 +290,8 @@ The core loop — document your fleet, check it, watch it, add to it, check remo
 
 ## Status
 
+**v1.3.0** — shipped 2026-03-30. `svc diff` — compare two manifest files. Reports services added, removed, or changed between the two YAML files. No network calls, pure schema comparison. Exit 0 if identical, exit 1 if differences found. `--quiet` for CI use. 53 tests.
+
 **v1.2.0** — shipped 2026-03-28. `svc report` — fleet uptime digest. Reads history database, computes per-service uptime % and incident count for a configurable window (default 7d). Three output formats: table (default), markdown (for Slack/Notion/webhooks), JSON. Optional `--webhook` posts structured JSON to any endpoint. 42 tests.
 
 **v1.1.0** — shipped 2026-03-26. `svc validate` — manifest linting with zero network calls. Parses and validates `services.yaml`, reports errors (missing port/health_url, bad version) and warnings (repo without version, empty description). Exit 0 if valid, exit 1 on errors. CI-safe: runs in milliseconds, no timeouts. 13 manifest tests.
@@ -321,6 +324,7 @@ The core loop — document your fleet, check it, watch it, add to it, check remo
 - [x] SSH remote systemd checks — `host:` field routes checks to remote machines via SSH
 - [x] `svc history` — SQLite check history, uptime %, incident tracking, prune
 - [x] `svc report` — fleet uptime digest (table/markdown/JSON), optional webhook delivery
+- [x] `svc diff` — compare two manifest files, schema diff, no network calls, CI-safe exits
 
 Docs:
 - [Design document](DESIGN.md)
