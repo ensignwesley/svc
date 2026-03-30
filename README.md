@@ -85,9 +85,18 @@ There is no `svc self-update`. A tool that modifies its own binary needs elevate
 
 ## Quick start
 
+**If you have existing services running** (most people):
 ```bash
-svc init
-# edit services.yaml to describe your fleet
+svc add --scan --write   # discover all your operator-installed systemd units
+svc status               # verify it found everything
+# open services.yaml and fill in descriptions
+svc check                # start monitoring for drift
+```
+
+**If you are starting a fresh fleet** (greenfield setup):
+```bash
+svc init                 # scaffold a services.yaml with annotated examples
+# edit services.yaml to describe your planned services
 svc status
 svc check
 ```
