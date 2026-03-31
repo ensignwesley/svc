@@ -1,13 +1,13 @@
 # svc Roadmap
 
-**Current version:** v1.3.0  
-**Last updated:** 2026-03-30
+**Current version:** v1.4.0  
+**Last updated:** 2026-03-31
 
 ---
 
 ## Where we are
 
-Ten commands. Pre-built binaries. Fifty-three tests. A working manifest for a 7-service fleet, polled continuously, with webhook alerting, single-command fleet scanner for onboarding, SSH remote systemd checks for multi-machine fleets, SQLite-backed check history with per-service uptime tracking, CI-safe manifest linting, scheduled uptime digest reporting, and schema diff between two manifest files.
+Ten commands. Pre-built binaries. Eighty-two tests. A working manifest for a 7-service fleet, polled continuously, with webhook alerting, single-command fleet scanner for onboarding, SSH remote systemd checks for multi-machine fleets, SQLite-backed check history with per-service uptime tracking, CI-safe manifest linting, scheduled uptime digest reporting, schema diff between two manifests, and multi-file directory scanning for large fleets.
 
 All five v1.0 gates cleared. The core loop is complete.
 
@@ -76,34 +76,23 @@ Example markdown output:
 
 ---
 
-### 3. Multi-file manifests (`!include` or directory scanning)
+### 3. Multi-file manifests (directory scanning) ✅ SHIPPED (v1.4.0)
 
 **The problem:** At 10 services, one `services.yaml` is manageable. At 50, it becomes unwieldy. There's no way to split a manifest by tier (prod/staging), by team, or by machine — without maintaining entirely separate invocations.
 
-**What it does:** Two approaches (implement simpler one first):
+**What it does:**
 
-Option A — `!include` directive:
-```yaml
-manifest:
-  version: 1
-  include:
-    - services/web.yaml
-    - services/databases.yaml
-    - services/monitoring.yaml
-```
-
-Option B — directory scanning:
 ```bash
 svc check --file services/    # merge all *.yaml in directory
+svc status --file services/
+svc validate --file services/
 ```
 
-Option B is simpler to implement and doesn't require YAML extension syntax. Implement B first.
+All `*.yaml` and `*.yml` files in the directory are merged alphabetically into one manifest. Duplicate service IDs across files are an error.
 
-**Why this is #3:** This is the scaling feature. It doesn't matter for a 7-service fleet; it matters a lot for a 50-service fleet or a team where different people own different service groups. Without it, svc hits a ceiling at maybe 20-30 services before the manifest becomes a maintenance problem.
+**Scope constraint:** Merged manifests must not allow duplicate service IDs. Conflict = error, not silent override. ✅ Enforced.
 
-**Scope constraint:** Merged manifests must not allow duplicate service IDs. Conflict = error, not silent override.
-
-**Semver:** Minor (1.1.0). Additive; existing single-file behavior unchanged.
+**Semver:** Minor (1.4.0). Additive; existing single-file behavior unchanged.
 
 ---
 

@@ -462,6 +462,217 @@ func TestValidateMassiveManifest(t *testing.T) {
 	}
 }
 
+// ── LoadDir / LoadAuto tests ─────────────────────────────────────────────────
+
+func TestLoadDirMergesTwoFiles(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "web.yaml"), `
+manifest:
+  version: 1
+  host: localhost
+services:
+  blog:
+    description: "Blog"
+    health_url: "https://example.com/"
+`)
+	writeFile(t, filepath.Join(dir, "infra.yaml"), `
+manifest:
+  version: 1
+services:
+  db:
+    description: "Database"
+    port: 5432
+`)
+
+	m, err := manifest.LoadDir(dir)
+	if err != nil {
+		t.Fatalf("LoadDir() error: %v", err)
+	}
+	if len(m.Services) != 2 {
+		t.Fatalf("expected 2 services, got %d", len(m.Services))
+	}
+	if _, ok := m.Services["blog"]; !ok {
+		t.Error("expected service 'blog'")
+	}
+	if _, ok := m.Services["db"]; !ok {
+		t.Error("expected service 'db'")
+	}
+}
+
+func TestLoadDirUsesFirstFileMeta(t *testing.T) {
+	dir := t.TempDir()
+	// Files are sorted alphabetically; a.yaml comes first.
+	writeFile(t, filepath.Join(dir, "a.yaml"), `
+manifest:
+  version: 1
+  host: primary-host
+services:
+  alpha:
+    description: "Alpha"
+    port: 8001
+`)
+	writeFile(t, filepath.Join(dir, "b.yaml"), `
+manifest:
+  version: 1
+  host: other-host
+services:
+  beta:
+    description: "Beta"
+    port: 8002
+`)
+
+	m, err := manifest.LoadDir(dir)
+	if err != nil {
+		t.Fatalf("LoadDir() error: %v", err)
+	}
+	if m.Meta.Host != "primary-host" {
+		t.Errorf("expected host from first file 'primary-host', got %q", m.Meta.Host)
+	}
+}
+
+func TestLoadDirRejectsDuplicateServiceIDs(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "a.yaml"), `
+manifest:
+  version: 1
+services:
+  shared-svc:
+    description: "First definition"
+    port: 8080
+`)
+	writeFile(t, filepath.Join(dir, "b.yaml"), `
+manifest:
+  version: 1
+services:
+  shared-svc:
+    description: "Duplicate"
+    port: 9090
+`)
+
+	_, err := manifest.LoadDir(dir)
+	if err == nil {
+		t.Fatal("expected error for duplicate service ID")
+	}
+	if !strings.Contains(err.Error(), "duplicate") {
+		t.Errorf("expected 'duplicate' in error, got: %v", err)
+	}
+}
+
+func TestLoadDirEmptyDirectory(t *testing.T) {
+	dir := t.TempDir()
+	_, err := manifest.LoadDir(dir)
+	if err == nil {
+		t.Fatal("expected error for empty directory")
+	}
+	if !strings.Contains(err.Error(), "no *.yaml") {
+		t.Errorf("expected 'no *.yaml' in error, got: %v", err)
+	}
+}
+
+func TestLoadDirNonexistentDirectory(t *testing.T) {
+	_, err := manifest.LoadDir("/nonexistent/path/xyz")
+	if err == nil {
+		t.Fatal("expected error for nonexistent directory")
+	}
+}
+
+func TestLoadAutoFile(t *testing.T) {
+	tmp := writeTemp(t, `
+manifest:
+  version: 1
+services:
+  svc:
+    description: "test"
+    port: 8080
+`)
+	m, err := manifest.LoadAuto(tmp)
+	if err != nil {
+		t.Fatalf("LoadAuto() on file error: %v", err)
+	}
+	if len(m.Services) != 1 {
+		t.Errorf("expected 1 service, got %d", len(m.Services))
+	}
+}
+
+func TestLoadAutoDirectory(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "services.yaml"), `
+manifest:
+  version: 1
+services:
+  app:
+    description: "App"
+    port: 3000
+`)
+
+	m, err := manifest.LoadAuto(dir)
+	if err != nil {
+		t.Fatalf("LoadAuto() on directory error: %v", err)
+	}
+	if len(m.Services) != 1 {
+		t.Errorf("expected 1 service, got %d", len(m.Services))
+	}
+}
+
+func TestLoadAutoNonexistent(t *testing.T) {
+	_, err := manifest.LoadAuto("/nonexistent/services.yaml")
+	if err == nil {
+		t.Fatal("expected error for nonexistent path")
+	}
+	if !strings.Contains(err.Error(), "svc init") {
+		t.Errorf("expected 'svc init' hint in error, got: %v", err)
+	}
+}
+
+func TestLoadDirIgnoresNonYAMLFiles(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "services.yaml"), `
+manifest:
+  version: 1
+services:
+  app:
+    description: "App"
+    port: 3000
+`)
+	// These should be ignored:
+	writeFile(t, filepath.Join(dir, "README.md"), "# readme")
+	writeFile(t, filepath.Join(dir, ".gitignore"), "*.bak")
+	writeFile(t, filepath.Join(dir, "notes.txt"), "some notes")
+
+	m, err := manifest.LoadDir(dir)
+	if err != nil {
+		t.Fatalf("LoadDir() error: %v", err)
+	}
+	if len(m.Services) != 1 {
+		t.Errorf("expected 1 service (non-yaml files ignored), got %d", len(m.Services))
+	}
+}
+
+func TestLoadDirRejectsWrongVersion(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "bad.yaml"), `
+manifest:
+  version: 2
+services:
+  svc:
+    port: 8080
+`)
+	_, err := manifest.LoadDir(dir)
+	if err == nil {
+		t.Fatal("expected error for wrong manifest version")
+	}
+	if !strings.Contains(err.Error(), "version") {
+		t.Errorf("expected 'version' in error, got: %v", err)
+	}
+}
+
+func writeFile(t *testing.T, path string, content string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func writeTemp(t *testing.T, content string) string {
 	t.Helper()
 	f := filepath.Join(t.TempDir(), "services.yaml")

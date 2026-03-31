@@ -41,7 +41,7 @@ type Config struct {
 
 // Watch runs the main polling loop until SIGTERM/SIGINT.
 func Watch(cfg Config, out io.Writer) error {
-	m, err := manifest.Load(cfg.ManifestPath)
+	m, err := manifest.LoadAuto(cfg.ManifestPath)
 	if err != nil {
 		return err
 	}

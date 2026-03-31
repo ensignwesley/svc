@@ -213,12 +213,33 @@ svc watch --interval 30 --failures 3 --webhook https://...
 
 Flags: `--file`, `--webhook`, `--interval` (default 60s), `--failures` (default 2), `--state`, `--timeout`, `--no-systemd`, `--stdout`
 
+### Multi-file manifests
+
+Split your manifest into multiple files — by tier, team, or machine:
+
+```
+services/
+  web.yaml      # blog, api, frontend
+  infra.yaml    # db, cache, queue
+  monitoring.yaml  # observatory, comments
+```
+
+```bash
+svc status --file services/
+svc check --file services/
+svc validate --file services/
+```
+
+All `*.yaml` files in the directory are merged alphabetically. Duplicate service IDs across files are an error (not a silent override).
+
 ### CI integration
 
 ```yaml
 # .github/workflows/manifest.yml
 - name: Check service manifest
   run: svc check --no-systemd --file ops/services.yaml
+  # or a directory:
+  # run: svc check --no-systemd --file ops/services/
 ```
 
 ## Architecture
@@ -290,7 +311,7 @@ The core loop — document your fleet, check it, watch it, add to it, check remo
 
 ## Status
 
-**v1.3.0** — shipped 2026-03-30. `svc diff` — compare two manifest files. Reports services added, removed, or changed between the two YAML files. No network calls, pure schema comparison. Exit 0 if identical, exit 1 if differences found. `--quiet` for CI use. 53 tests.
+**v1.4.0** — shipped 2026-03-31. Multi-file manifest support — `--file <dir>` accepts a directory path. All `*.yaml` files in the directory are merged into a single manifest. Duplicate service IDs across files are an error. Works with `svc status`, `svc check`, `svc watch`, `svc validate`. Split your fleet by tier, team, or machine without maintaining separate invocations. 82 tests.
 
 **v1.2.0** — shipped 2026-03-28. `svc report` — fleet uptime digest. Reads history database, computes per-service uptime % and incident count for a configurable window (default 7d). Three output formats: table (default), markdown (for Slack/Notion/webhooks), JSON. Optional `--webhook` posts structured JSON to any endpoint. 42 tests.
 
@@ -325,6 +346,7 @@ The core loop — document your fleet, check it, watch it, add to it, check remo
 - [x] `svc history` — SQLite check history, uptime %, incident tracking, prune
 - [x] `svc report` — fleet uptime digest (table/markdown/JSON), optional webhook delivery
 - [x] `svc diff` — compare two manifest files, schema diff, no network calls, CI-safe exits
+- [x] Multi-file manifests — `--file <dir>` merges all *.yaml files; duplicate IDs rejected
 
 Docs:
 - [Design document](DESIGN.md)

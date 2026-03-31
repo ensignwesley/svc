@@ -4,6 +4,31 @@ All notable changes to svc. Follows [Keep a Changelog](https://keepachangelog.co
 
 ---
 
+## [1.4.0] — 2026-03-31
+
+### Added
+- **Multi-file manifest support** — `--file <dir>` accepts a directory path
+  - All `*.yaml` and `*.yml` files in the directory are merged into a single manifest
+  - Service IDs must be unique across files; duplicate IDs are an error
+  - Meta (version, host) is taken from the first file alphabetically; subsequent files must have `manifest.version: 1`
+  - Works with `svc status`, `svc check`, `svc watch`, `svc validate`
+  - Non-YAML files in the directory are silently ignored
+- `manifest.LoadAuto(path)` — smart loader; detects file vs directory automatically
+- `manifest.LoadDir(dir)` — merges all `*.yaml` files in a directory into one `Manifest`
+
+### Tests
+- 10 new manifest tests (82 total across all packages): `TestLoadDirMergesTwoFiles`, `TestLoadDirUsesFirstFileMeta`, `TestLoadDirRejectsDuplicateServiceIDs`, `TestLoadDirEmptyDirectory`, `TestLoadDirNonexistentDirectory`, `TestLoadAutoFile`, `TestLoadAutoDirectory`, `TestLoadAutoNonexistent`, `TestLoadDirIgnoresNonYAMLFiles`, `TestLoadDirRejectsWrongVersion`
+
+### Changed
+- Version: 1.3.0 → 1.4.0
+- All read-path commands now call `LoadAuto` instead of `Load` internally
+- Usage string: `--file` flag description updated to reflect file-or-directory support
+- ROADMAP: multi-file manifests (item 3) marked as shipped
+
+**Semver reasoning:** Minor (1.4.0). New capability, fully additive. Existing single-file behavior unchanged. `Load()` still works as before.
+
+---
+
 ## [1.2.0] — 2026-03-28
 
 ### Added

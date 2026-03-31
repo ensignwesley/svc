@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -48,6 +49,102 @@ func Load(path string) (*Manifest, error) {
 	}
 
 	return &m, nil
+}
+
+// LoadAuto loads a manifest from a file path or a directory.
+// If path is a directory, it calls LoadDir and merges all *.yaml files found.
+// If path is a file, it calls Load directly.
+func LoadAuto(path string) (*Manifest, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("services.yaml not found at %q\nRun 'svc init' to create one, or use --file to specify a path", path)
+		}
+		return nil, fmt.Errorf("stat %q: %w", path, err)
+	}
+	if info.IsDir() {
+		return LoadDir(path)
+	}
+	return Load(path)
+}
+
+// LoadDir merges all *.yaml files in dir into a single Manifest.
+// Service IDs must be unique across files — duplicates are an error.
+// The manifest.version and manifest.host from the first file encountered
+// (alphabetically) are used as the merged Meta; per-file meta mismatches
+// are ignored (only version must be 1 in every file).
+func LoadDir(dir string) (*Manifest, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("reading directory %q: %w", dir, err)
+	}
+
+	var yamlFiles []string
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if strings.HasSuffix(name, ".yaml") || strings.HasSuffix(name, ".yml") {
+			yamlFiles = append(yamlFiles, filepath.Join(dir, name))
+		}
+	}
+
+	if len(yamlFiles) == 0 {
+		return nil, fmt.Errorf("no *.yaml files found in directory %q", dir)
+	}
+
+	// Sort for deterministic merge order.
+	sort.Strings(yamlFiles)
+
+	merged := &Manifest{
+		Services: make(map[string]Service),
+	}
+	metaSet := false
+
+	for _, path := range yamlFiles {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("reading %q: %w", path, err)
+		}
+
+		var m Manifest
+		if err := yaml.Unmarshal(data, &m); err != nil {
+			return nil, fmt.Errorf("parsing %q: %w", path, err)
+		}
+
+		// Require version 1 in every file.
+		if m.Meta.Version != 1 {
+			return nil, fmt.Errorf("%q: manifest.version must be 1 (got %d)", path, m.Meta.Version)
+		}
+
+		// Use meta from the first file.
+		if !metaSet {
+			merged.Meta = m.Meta
+			metaSet = true
+		}
+
+		// Merge services — reject duplicates.
+		for id, svc := range m.Services {
+			if _, exists := merged.Services[id]; exists {
+				return nil, fmt.Errorf("duplicate service ID %q found in %q (already defined in a previous file)", id, path)
+			}
+			merged.Services[id] = svc
+		}
+	}
+
+	// Validate the merged manifest.
+	vr := Validate(merged)
+	if !vr.Valid() {
+		return nil, fmt.Errorf("%s", vr.Errors[0])
+	}
+
+	// Apply defaults.
+	if merged.Meta.Host == "" {
+		merged.Meta.Host = "localhost"
+	}
+
+	return merged, nil
 }
 
 // ParseManifest parses raw YAML bytes into a Manifest without validating.
