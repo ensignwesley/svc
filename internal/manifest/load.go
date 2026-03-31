@@ -2,8 +2,10 @@ package manifest
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"sort"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -79,10 +81,34 @@ func Validate(m *Manifest) *ValidationResult {
 
 	for _, id := range ids {
 		svc := m.Services[id]
+
+		// Empty service ID is invalid.
+		if strings.TrimSpace(id) == "" {
+			result.Errors = append(result.Errors,
+				"service ID must not be empty or whitespace-only")
+		}
+
 		if svc.Port == 0 && svc.HealthURL == "" {
 			result.Errors = append(result.Errors,
 				fmt.Sprintf("service %q: one of 'port' or 'health_url' is required", id))
 		}
+
+		// Port range validation (only when port is the health mechanism).
+		if svc.Port != 0 {
+			if svc.Port < 1 || svc.Port > 65535 {
+				result.Errors = append(result.Errors,
+					fmt.Sprintf("service %q: port %d is out of range (1–65535)", id, svc.Port))
+			}
+		}
+
+		// health_url must be a valid absolute URL if provided.
+		if svc.HealthURL != "" {
+			if u, err := url.Parse(svc.HealthURL); err != nil || (u.Scheme != "http" && u.Scheme != "https") {
+				result.Errors = append(result.Errors,
+					fmt.Sprintf("service %q: health_url must be an absolute http/https URL (got %q)", id, svc.HealthURL))
+			}
+		}
+
 		if svc.Repo != "" && svc.Version == "" {
 			result.Warnings = append(result.Warnings,
 				fmt.Sprintf("service %q: repo is set without version (version drift check will be skipped)", id))

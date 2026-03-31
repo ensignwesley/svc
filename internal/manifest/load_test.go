@@ -1,6 +1,7 @@
 package manifest_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -246,6 +247,218 @@ func TestParseManifestInvalidYAML(t *testing.T) {
 	_, err := manifest.ParseManifest([]byte("manifest:\n  version: 1\n services:\n  foo: bar"))
 	if err == nil {
 		t.Fatal("expected error for invalid YAML")
+	}
+}
+
+// ── Adversarial / edge-case tests ────────────────────────────────────────────
+
+func TestValidateNegativePort(t *testing.T) {
+	m := &manifest.Manifest{
+		Meta: manifest.Meta{Version: 1},
+		Services: map[string]manifest.Service{
+			"svc": {Description: "test", Port: -1},
+		},
+	}
+	result := manifest.Validate(m)
+	if result.Valid() {
+		t.Fatal("expected invalid for negative port")
+	}
+	found := false
+	for _, e := range result.Errors {
+		if strings.Contains(e, "out of range") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected out-of-range error, got: %v", result.Errors)
+	}
+}
+
+func TestValidatePortTooHigh(t *testing.T) {
+	m := &manifest.Manifest{
+		Meta: manifest.Meta{Version: 1},
+		Services: map[string]manifest.Service{
+			"svc": {Description: "test", Port: 99999},
+		},
+	}
+	result := manifest.Validate(m)
+	if result.Valid() {
+		t.Fatal("expected invalid for port > 65535")
+	}
+	found := false
+	for _, e := range result.Errors {
+		if strings.Contains(e, "out of range") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected out-of-range error, got: %v", result.Errors)
+	}
+}
+
+func TestValidatePortBoundaries(t *testing.T) {
+	// Port 1 and 65535 must be valid.
+	for _, port := range []int{1, 1024, 8080, 65535} {
+		m := &manifest.Manifest{
+			Meta: manifest.Meta{Version: 1},
+			Services: map[string]manifest.Service{
+				"svc": {Description: "test", Port: port},
+			},
+		}
+		result := manifest.Validate(m)
+		if !result.Valid() {
+			t.Errorf("port %d should be valid, got errors: %v", port, result.Errors)
+		}
+	}
+
+	// Port 0 is only valid when health_url is set.
+	m := &manifest.Manifest{
+		Meta: manifest.Meta{Version: 1},
+		Services: map[string]manifest.Service{
+			"svc": {Description: "test", Port: 0, HealthURL: "https://example.com/health"},
+		},
+	}
+	result := manifest.Validate(m)
+	if !result.Valid() {
+		t.Errorf("port 0 with health_url should be valid, got: %v", result.Errors)
+	}
+}
+
+func TestValidateEmptyServiceID(t *testing.T) {
+	m := &manifest.Manifest{
+		Meta: manifest.Meta{Version: 1},
+		Services: map[string]manifest.Service{
+			"": {Description: "empty id", Port: 8080},
+		},
+	}
+	result := manifest.Validate(m)
+	if result.Valid() {
+		t.Fatal("expected invalid for empty service ID")
+	}
+	found := false
+	for _, e := range result.Errors {
+		if strings.Contains(e, "empty") || strings.Contains(e, "ID") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected empty-ID error, got: %v", result.Errors)
+	}
+}
+
+func TestValidateHealthURLBadScheme(t *testing.T) {
+	cases := []struct {
+		name string
+		url  string
+	}{
+		{"no scheme", "localhost:8080/health"},
+		{"garbage", "not a url at all!!!"},
+		{"ftp scheme", "ftp://example.com/health"},
+		{"file scheme", "file:///etc/passwd"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := &manifest.Manifest{
+				Meta: manifest.Meta{Version: 1},
+				Services: map[string]manifest.Service{
+					"svc": {Description: "test", HealthURL: tc.url},
+				},
+			}
+			result := manifest.Validate(m)
+			if result.Valid() {
+				t.Errorf("expected invalid for health_url %q", tc.url)
+			}
+		})
+	}
+}
+
+func TestValidateHealthURLValid(t *testing.T) {
+	cases := []string{
+		"http://localhost:8080/health",
+		"https://example.com/health",
+		"http://192.168.1.1:9090/healthz",
+		"https://my-service.internal/",
+	}
+	for _, u := range cases {
+		t.Run(u, func(t *testing.T) {
+			m := &manifest.Manifest{
+				Meta: manifest.Meta{Version: 1},
+				Services: map[string]manifest.Service{
+					"svc": {Description: "test", HealthURL: u},
+				},
+			}
+			result := manifest.Validate(m)
+			if !result.Valid() {
+				t.Errorf("expected valid for health_url %q, got: %v", u, result.Errors)
+			}
+		})
+	}
+}
+
+func TestLoadEmptyFile(t *testing.T) {
+	tmp := writeTemp(t, "")
+	_, err := manifest.Load(tmp)
+	if err == nil {
+		t.Fatal("expected error for empty file")
+	}
+	if !strings.Contains(err.Error(), "version") {
+		t.Errorf("expected version error, got: %v", err)
+	}
+}
+
+func TestLoadGarbageYAML(t *testing.T) {
+	tmp := writeTemp(t, "not: yaml: [[[")
+	_, err := manifest.Load(tmp)
+	if err == nil {
+		t.Fatal("expected error for garbage YAML")
+	}
+}
+
+func TestLoadBinaryContent(t *testing.T) {
+	f := filepath.Join(t.TempDir(), "binary.yaml")
+	if err := os.WriteFile(f, []byte{0x00, 0x01, 0x02, 0xff, 0xfe}, 0644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := manifest.Load(f)
+	if err == nil {
+		t.Fatal("expected error for binary file")
+	}
+}
+
+func TestValidateDuplicateKeysRejectedByYAML(t *testing.T) {
+	yaml := `
+manifest:
+  version: 1
+services:
+  svc-a:
+    port: 8080
+    description: "First"
+  svc-a:
+    port: 9090
+    description: "Duplicate key"
+`
+	_, err := manifest.ParseManifest([]byte(yaml))
+	if err == nil {
+		t.Fatal("expected error for duplicate service keys")
+	}
+}
+
+func TestValidateMassiveManifest(t *testing.T) {
+	// 1000 services should parse and validate cleanly without panic or timeout.
+	services := make(map[string]manifest.Service, 1000)
+	for i := 0; i < 1000; i++ {
+		services[fmt.Sprintf("svc-%04d", i)] = manifest.Service{
+			Description: fmt.Sprintf("Service %d", i),
+			Port:        3000 + i,
+		}
+	}
+	m := &manifest.Manifest{
+		Meta:     manifest.Meta{Version: 1, Host: "localhost"},
+		Services: services,
+	}
+	result := manifest.Validate(m)
+	if !result.Valid() {
+		t.Fatalf("expected valid massive manifest, got errors: %v", result.Errors)
 	}
 }
 
