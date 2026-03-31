@@ -553,8 +553,16 @@ services:
 	if err == nil {
 		t.Fatal("expected error for duplicate service ID")
 	}
-	if !strings.Contains(err.Error(), "duplicate") {
-		t.Errorf("expected 'duplicate' in error, got: %v", err)
+	msg := err.Error()
+	if !strings.Contains(msg, "duplicate") {
+		t.Errorf("expected 'duplicate' in error, got: %v", msg)
+	}
+	// Both filenames must appear so the operator knows exactly where to look.
+	if !strings.Contains(msg, "a.yaml") {
+		t.Errorf("expected first file 'a.yaml' in error, got: %v", msg)
+	}
+	if !strings.Contains(msg, "b.yaml") {
+		t.Errorf("expected second file 'b.yaml' in error, got: %v", msg)
 	}
 }
 

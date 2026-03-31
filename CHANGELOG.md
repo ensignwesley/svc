@@ -4,6 +4,13 @@ All notable changes to svc. Follows [Keep a Changelog](https://keepachangelog.co
 
 ---
 
+## [1.4.1] — 2026-03-31
+
+### Fixed
+- **Duplicate service ID error now names both files** — when two YAML files in a directory define the same service ID, the error message previously named only the second file. It now names both: `duplicate service ID "foo": defined in both "a.yaml" and "b.yaml"`. Faster diagnosis with large fleets.
+
+---
+
 ## [1.4.0] — 2026-03-31
 
 ### Added

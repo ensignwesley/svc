@@ -311,6 +311,8 @@ The core loop — document your fleet, check it, watch it, add to it, check remo
 
 ## Status
 
+**v1.4.1** — shipped 2026-03-31. Patch: duplicate service ID error now names both files (`"foo": defined in both "a.yaml" and "b.yaml"`). Previously named only the second file.
+
 **v1.4.0** — shipped 2026-03-31. Multi-file manifest support — `--file <dir>` accepts a directory path. All `*.yaml` files in the directory are merged into a single manifest. Duplicate service IDs across files are an error. Works with `svc status`, `svc check`, `svc watch`, `svc validate`. Split your fleet by tier, team, or machine without maintaining separate invocations. 82 tests.
 
 **v1.2.0** — shipped 2026-03-28. `svc report` — fleet uptime digest. Reads history database, computes per-service uptime % and incident count for a configurable window (default 7d). Three output formats: table (default), markdown (for Slack/Notion/webhooks), JSON. Optional `--webhook` posts structured JSON to any endpoint. 42 tests.

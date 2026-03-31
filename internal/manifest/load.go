@@ -100,6 +100,8 @@ func LoadDir(dir string) (*Manifest, error) {
 	merged := &Manifest{
 		Services: make(map[string]Service),
 	}
+	// serviceOrigin tracks which file each service ID came from, for duplicate diagnostics.
+	serviceOrigin := make(map[string]string)
 	metaSet := false
 
 	for _, path := range yamlFiles {
@@ -124,12 +126,13 @@ func LoadDir(dir string) (*Manifest, error) {
 			metaSet = true
 		}
 
-		// Merge services — reject duplicates.
+		// Merge services — reject duplicates, naming both files.
 		for id, svc := range m.Services {
-			if _, exists := merged.Services[id]; exists {
-				return nil, fmt.Errorf("duplicate service ID %q found in %q (already defined in a previous file)", id, path)
+			if first, exists := serviceOrigin[id]; exists {
+				return nil, fmt.Errorf("duplicate service ID %q: defined in both %q and %q", id, first, path)
 			}
 			merged.Services[id] = svc
+			serviceOrigin[id] = path
 		}
 	}
 
