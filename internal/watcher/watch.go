@@ -41,6 +41,9 @@ type Config struct {
 
 // Watch runs the main polling loop until SIGTERM/SIGINT.
 func Watch(cfg Config, out io.Writer) error {
+	// Load manifest once at startup to validate it and print the service count.
+	// After that, each tick reloads it so manifest edits take effect without
+	// restarting the process (and without resetting alert state).
 	m, err := manifest.LoadAuto(cfg.ManifestPath)
 	if err != nil {
 		return err
@@ -62,7 +65,7 @@ func Watch(cfg Config, out io.Writer) error {
 	defer ticker.Stop()
 
 	// Run first check immediately.
-	runCheck(cfg, m, state, out)
+	runCheck(cfg, state, out)
 	if err := Save(cfg.StatePath, state); err != nil {
 		fmt.Fprintf(out, "%s  ⚠️  state save failed: %v\n", timestamp(), err)
 	}
@@ -73,7 +76,7 @@ func Watch(cfg Config, out io.Writer) error {
 			fmt.Fprintf(out, "%s  svc watch stopping\n", timestamp())
 			return nil
 		case <-ticker.C:
-			runCheck(cfg, m, state, out)
+			runCheck(cfg, state, out)
 			if err := Save(cfg.StatePath, state); err != nil {
 				fmt.Fprintf(out, "%s  ⚠️  state save failed: %v\n", timestamp(), err)
 			}
@@ -81,8 +84,23 @@ func Watch(cfg Config, out io.Writer) error {
 	}
 }
 
-// runCheck polls all services and updates state, firing events on transitions.
-func runCheck(cfg Config, m *manifest.Manifest, state *WatchState, out io.Writer) {
+// runCheck reloads the manifest from disk, polls all services, and updates
+// state — firing events on transitions. Reloading on every tick means manifest
+// edits (add/remove/change services) take effect on the next poll without
+// restarting the process or resetting alert state.
+//
+// If the manifest is temporarily unreadable (mid-save, syntax error), runCheck
+// logs the error and returns without polling. The watch loop continues; the
+// next tick will retry the reload. Alert state is never modified on a failed
+// reload, so failure counts and alerted flags survive the bad tick cleanly.
+func runCheck(cfg Config, state *WatchState, out io.Writer) {
+	m, err := manifest.LoadAuto(cfg.ManifestPath)
+	if err != nil {
+		fmt.Fprintf(out, "%s  ⚠️  manifest reload failed (skipping tick): %v\n",
+			timestamp(), err)
+		return
+	}
+
 	// Build health check targets.
 	targets := make(map[string]string)
 	for id, svc := range m.Services {
@@ -177,6 +195,12 @@ func runCheck(cfg Config, m *manifest.Manifest, state *WatchState, out io.Writer
 			}
 		}
 	}
+}
+
+// RunCheckOnce loads the manifest and runs a single poll cycle against state.
+// Exported for testing; production code uses the Watch loop.
+func RunCheckOnce(cfg Config, state *WatchState, out io.Writer) {
+	runCheck(cfg, state, out)
 }
 
 // fireEvent dispatches an event to stdout and/or webhook.

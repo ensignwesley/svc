@@ -4,6 +4,15 @@ All notable changes to svc. Follows [Keep a Changelog](https://keepachangelog.co
 
 ---
 
+## [1.4.2] — 2026-03-31
+
+### Fixed
+- **`svc watch` hot-reloads the manifest on every tick** — previously the manifest was loaded once at startup. Adding, removing, or changing a service required restarting `svc watch`, which reset all alert state (failure counts, alerted flags). Now the manifest is re-read from disk on every poll cycle. Alert state survives across reloads unchanged.
+- **Graceful fallback on bad manifest** — if the manifest is temporarily unreadable (mid-save edit, syntax error), `svc watch` logs a warning and skips that tick. The loop continues; no alert state is modified; the next tick retries the reload automatically.
+- 5 new watcher tests covering: bad manifest skips tick, alerted flag survives bad reload, missing file skips tick, new service appears after hot-reload, alert state preserved across good reload.
+
+---
+
 ## [1.4.1] — 2026-03-31
 
 ### Fixed

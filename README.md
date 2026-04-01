@@ -311,6 +311,8 @@ The core loop — document your fleet, check it, watch it, add to it, check remo
 
 ## Status
 
+**v1.4.2** — shipped 2026-03-31. `svc watch` now hot-reloads the manifest on every tick. Add or remove a service without restarting the process or resetting alert state. Graceful skip if the manifest is temporarily unreadable (mid-save edit, syntax error). 87 tests.
+
 **v1.4.1** — shipped 2026-03-31. Patch: duplicate service ID error now names both files (`"foo": defined in both "a.yaml" and "b.yaml"`). Previously named only the second file.
 
 **v1.4.0** — shipped 2026-03-31. Multi-file manifest support — `--file <dir>` accepts a directory path. All `*.yaml` files in the directory are merged into a single manifest. Duplicate service IDs across files are an error. Works with `svc status`, `svc check`, `svc watch`, `svc validate`. Split your fleet by tier, team, or machine without maintaining separate invocations. 82 tests.
