@@ -674,6 +674,99 @@ services:
 	}
 }
 
+func TestParseDurationDays(t *testing.T) {
+	cases := []struct {
+		input   string
+		wantErr bool
+		wantH   float64 // expected hours
+	}{
+		{"90d", false, 90 * 24},
+		{"7d", false, 7 * 24},
+		{"1d", false, 24},
+		{"0d", true, 0},
+		{"-1d", true, 0},
+		{"abcd", true, 0},
+		{"720h", false, 720},
+		{"", true, 0}, // empty should fail (caller guards)
+	}
+	for _, tc := range cases {
+		d, err := manifest.ParseDuration(tc.input)
+		if tc.wantErr {
+			if err == nil {
+				t.Errorf("ParseDuration(%q): expected error, got nil", tc.input)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("ParseDuration(%q): unexpected error: %v", tc.input, err)
+			continue
+		}
+		gotH := d.Hours()
+		if gotH != tc.wantH {
+			t.Errorf("ParseDuration(%q) = %.0fh, want %.0fh", tc.input, gotH, tc.wantH)
+		}
+	}
+}
+
+func TestRetentionDurationEmpty(t *testing.T) {
+	m := &manifest.Manifest{}
+	dur, err := manifest.RetentionDuration(m)
+	if err != nil {
+		t.Fatalf("RetentionDuration() with empty retention: unexpected error: %v", err)
+	}
+	if dur != 0 {
+		t.Errorf("expected 0 duration for empty retention, got %v", dur)
+	}
+}
+
+func TestRetentionDurationValid(t *testing.T) {
+	yaml := `
+manifest:
+  version: 1
+  history:
+    retention: 90d
+services:
+  svc1:
+    description: test
+    port: 8080
+`
+	f := writeTemp(t, yaml)
+	m, err := manifest.Load(f)
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	dur, err := manifest.RetentionDuration(m)
+	if err != nil {
+		t.Fatalf("RetentionDuration() error: %v", err)
+	}
+	want := 90 * 24 * float64(3600)
+	got := dur.Seconds()
+	if got != want {
+		t.Errorf("RetentionDuration() = %.0fs, want %.0fs", got, want)
+	}
+}
+
+func TestValidateRetentionInvalid(t *testing.T) {
+	yaml := `
+manifest:
+  version: 1
+  history:
+    retention: not-a-duration
+services:
+  svc1:
+    description: test
+    port: 8080
+`
+	f := writeTemp(t, yaml)
+	_, err := manifest.Load(f)
+	if err == nil {
+		t.Fatal("expected error for invalid retention, got nil")
+	}
+	if !strings.Contains(err.Error(), "retention") {
+		t.Errorf("expected 'retention' in error, got: %v", err)
+	}
+}
+
 func writeFile(t *testing.T, path string, content string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {

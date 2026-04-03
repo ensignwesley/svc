@@ -1,13 +1,13 @@
 # svc Roadmap
 
-**Current version:** v1.4.0  
-**Last updated:** 2026-03-31
+**Current version:** v1.5.0  
+**Last updated:** 2026-04-02
 
 ---
 
 ## Where we are
 
-Ten commands. Pre-built binaries. Eighty-two tests. A working manifest for a 7-service fleet, polled continuously, with webhook alerting, single-command fleet scanner for onboarding, SSH remote systemd checks for multi-machine fleets, SQLite-backed check history with per-service uptime tracking, CI-safe manifest linting, scheduled uptime digest reporting, schema diff between two manifests, and multi-file directory scanning for large fleets.
+Ten commands. Pre-built binaries. Ninety-one tests. A working manifest for a 7-service fleet, polled continuously, with webhook alerting, single-command fleet scanner for onboarding, SSH remote systemd checks for multi-machine fleets, SQLite-backed check history with per-service uptime tracking, CI-safe manifest linting, scheduled uptime digest reporting, schema diff between two manifests, and multi-file directory scanning for large fleets.
 
 All five v1.0 gates cleared. The core loop is complete.
 
@@ -96,17 +96,11 @@ All `*.yaml` and `*.yml` files in the directory are merged alphabetically into o
 
 ---
 
-### 4. History retention policy
+### 4. History retention policy ✅ SHIPPED (v1.5.0)
 
 **The problem:** `svc check --record` appends every check result to SQLite. With a 5-minute poll interval and 10 services, that's ~2,880 rows per day, ~21,000 per week. After a year: ~1M rows, probably 30-50MB. Not catastrophic, but unbounded growth is a bad default.
 
 **What it does:**
-```bash
-svc history prune --keep 90d   # already exists (manual)
-```
-
-What's missing: automatic pruning on a configurable schedule. Proposal: add `history.retention` to `manifest.yaml`:
-
 ```yaml
 manifest:
   version: 1
@@ -115,11 +109,9 @@ manifest:
     # incidents are never auto-pruned
 ```
 
-`svc check --record` runs the prune as a background step after recording. Zero extra commands, zero extra cron jobs.
+`svc check --record` runs the prune as a background step after recording. Zero extra commands, zero extra cron jobs. Manual `svc history prune` still available.
 
-**Why this is #4:** Not urgent for any individual user today. Becomes relevant in months 3-6 when they notice their history database is 50MB. Better to make the default sane now, while it's cheap, than to fix it reactively when users file issues.
-
-**Semver:** Minor (1.1.0). Schema addition (backward-compatible; no retention field = current behavior, no auto-prune).
+**Semver:** Minor (1.5.0). Schema addition (backward-compatible; no retention field = current behavior, no auto-prune). 4 new tests → 91 total.
 
 ---
 

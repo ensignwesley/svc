@@ -4,6 +4,28 @@ All notable changes to svc. Follows [Keep a Changelog](https://keepachangelog.co
 
 ---
 
+## [1.5.0] — 2026-04-02
+
+### Added
+- **Automatic history retention** — add `history.retention: 90d` to the `manifest:` block and `svc check --record` will automatically prune check rows older than the configured window after each run. No extra commands, no extra cron jobs. Incidents are never auto-pruned regardless of the setting.
+  ```yaml
+  manifest:
+    version: 1
+    history:
+      retention: 90d   # auto-prune checks older than this; incidents retained forever
+  ```
+- `manifest.ParseDuration()` — exported helper for parsing svc duration strings (`Nd`, `Nh`, standard `time.ParseDuration` formats). Used internally; available to tools that embed the manifest package.
+- `manifest.RetentionDuration()` — returns the configured retention as a `time.Duration` (zero = disabled, backward-compatible).
+- Validation for `history.retention` — invalid formats (e.g. `not-a-duration`, `0d`) produce a clear error from `svc validate` and at load time.
+- 4 new manifest tests: `TestParseDurationDays`, `TestRetentionDurationEmpty`, `TestRetentionDurationValid`, `TestValidateRetentionInvalid`.
+- **91 tests total** (was 87).
+
+### Notes
+- Backward-compatible: manifests without `history.retention` behave identically to v1.4.2.
+- ROADMAP item 4 (history retention policy) is now complete. All five v1.1 items shipped.
+
+---
+
 ## [1.4.2] — 2026-03-31
 
 ### Fixed

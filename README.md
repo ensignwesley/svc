@@ -159,6 +159,9 @@ Summary: 1 down, 1 undocumented
 manifest:
   version: 1
   host: localhost          # default health check host
+  history:
+    retention: 90d         # auto-prune checks older than this on svc check --record
+                           # incidents are never auto-pruned; omit to disable
 
 services:
 
@@ -310,6 +313,8 @@ v1.0 is the version a stranger can install, run against their fleet, and get val
 The core loop — document your fleet, check it, watch it, add to it, check remote machines, and look up when something last broke — is complete. That's v1.0.
 
 ## Status
+
+**v1.5.0** — shipped 2026-04-02. Automatic history retention: add `history.retention: 90d` to the `manifest:` block and `svc check --record` auto-prunes check rows older than the configured window after each run. No extra commands. Incidents are never auto-pruned. Invalid retention formats are caught at load time and by `svc validate`. 91 tests. All five ROADMAP v1.1 items shipped.
 
 **v1.4.2** — shipped 2026-03-31. `svc watch` now hot-reloads the manifest on every tick. Add or remove a service without restarting the process or resetting alert state. Graceful skip if the manifest is temporarily unreadable (mid-save edit, syntax error). 87 tests.
 

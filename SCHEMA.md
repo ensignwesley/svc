@@ -8,6 +8,10 @@ Quick reference for all supported fields.
 manifest:
   version: 1          # schema version (required)
   host: localhost      # default health check host (optional, default: localhost)
+  history:
+    retention: 90d    # auto-prune check rows older than this on svc check --record
+                      # format: Nd (days), Nh (hours), or any time.ParseDuration string
+                      # incidents are never auto-pruned; omit this field to disable
 
 services:
   <id>:               # kebab-case service identifier

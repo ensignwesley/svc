@@ -11,6 +11,15 @@ type Meta struct {
 	Version     int      `yaml:"version"`
 	Host        string   `yaml:"host"`
 	IgnoreUnits []string `yaml:"ignore_units"`
+	History     History  `yaml:"history"`
+}
+
+// History holds optional history retention settings.
+type History struct {
+	// Retention is the maximum age of check rows to keep.
+	// Format: "90d", "30d", "7d", etc. Empty means no auto-prune.
+	// Incidents are never auto-pruned regardless of this setting.
+	Retention string `yaml:"retention"`
 }
 
 // Service describes a single self-hosted service.

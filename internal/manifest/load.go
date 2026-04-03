@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -172,6 +173,14 @@ func Validate(m *Manifest) *ValidationResult {
 		result.Errors = append(result.Errors, fmt.Sprintf("unsupported manifest version %d (expected 1)", m.Meta.Version))
 	}
 
+	// Validate history.retention format if set.
+	if r := strings.TrimSpace(m.Meta.History.Retention); r != "" {
+		if _, err := ParseDuration(r); err != nil {
+			result.Errors = append(result.Errors,
+				fmt.Sprintf("manifest.history.retention: %v", err))
+		}
+	}
+
 	// Per-service checks. Sort IDs for deterministic output.
 	ids := make([]string, 0, len(m.Services))
 	for id := range m.Services {
@@ -223,6 +232,35 @@ func Validate(m *Manifest) *ValidationResult {
 }
 
 
+
+// RetentionDuration parses manifest.history.retention into a time.Duration.
+// Returns 0 and no error if retention is empty (disabled).
+// Returns an error if the format is unrecognized.
+func RetentionDuration(m *Manifest) (time.Duration, error) {
+	s := strings.TrimSpace(m.Meta.History.Retention)
+	if s == "" {
+		return 0, nil
+	}
+	return ParseDuration(s)
+}
+
+// ParseDuration parses a duration string of the form "Nd" (days), "Nh" (hours),
+// "Nm" (minutes), or any string accepted by time.ParseDuration.
+func ParseDuration(s string) (time.Duration, error) {
+	s = strings.TrimSpace(s)
+	if strings.HasSuffix(s, "d") {
+		var days int
+		if _, err := fmt.Sscanf(s, "%d", &days); err != nil || days <= 0 {
+			return 0, fmt.Errorf("invalid retention %q: expected positive integer followed by 'd' (e.g. 90d)", s)
+		}
+		return time.Duration(days) * 24 * time.Hour, nil
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		return 0, fmt.Errorf("invalid retention %q: use formats like '90d', '720h', or '30d'", s)
+	}
+	return d, nil
+}
 
 // ResolveHealthURL returns the effective health URL for a service.
 // Explicit health_url takes precedence; otherwise derives from host+port.
